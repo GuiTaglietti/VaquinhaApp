@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: vaquinhas_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "55432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    env_file:
+      - ./backend/.env
+    ports:
+      - "5055:5000"
+    depends_on:
+      - db
+    volumes:
+      - ./backend/app:/app/app
+    environment:
+      - FLASK_ENV=development
+
+  frontend:
+    image: node:20
+    working_dir: /app
+    env_file:
+      - ./frontend/.env
+    environment:
+      - CHOKIDAR_USEPOLLING=1
+      - WATCHPACK_POLLING=true
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5199:8080"
+    depends_on:
+      - backend
+    command: >
+      sh -lc "
+        corepack enable || true &&
+        npm ci &&
+        npm run dev
+      "
+
+
+volumes:
+  db_data:

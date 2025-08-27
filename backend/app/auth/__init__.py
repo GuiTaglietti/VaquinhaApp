@@ -1,0 +1,1 @@
+"""Pacote de autenticação para o backend."""
