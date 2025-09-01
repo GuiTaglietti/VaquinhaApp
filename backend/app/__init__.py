@@ -19,7 +19,9 @@ from .auth.routes import auth_bp
 from .fundraisers.routes import fundraisers_bp
 from .contributions.routes import contributions_bp
 from .public.routes import public_bp
-
+from .profile.routes import profile_bp
+from .explore.routes import explore_bp  
+from .withdrawals.routes import withdrawals_bp
 
 def create_app() -> Flask:
     """Cria e configura uma instância da aplicação Flask."""
@@ -59,6 +61,9 @@ def create_app() -> Flask:
     app.register_blueprint(fundraisers_bp, url_prefix="/api/fundraisers")
     app.register_blueprint(contributions_bp, url_prefix="/api")
     app.register_blueprint(public_bp, url_prefix="/api")
+    app.register_blueprint(profile_bp, url_prefix="/api")
+    app.register_blueprint(explore_bp, url_prefix="/api")
+    app.register_blueprint(withdrawals_bp, url_prefix="/api/withdrawals")
 
     # Healthcheck
     @app.get("/api/healthz")

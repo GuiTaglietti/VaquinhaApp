@@ -45,10 +45,10 @@ const Sidebar = ({ className }: { className?: string }) => {
       <div className="space-y-4 py-4">
         <div className="px-3 py-2">
           <div className="flex items-center gap-2 px-3 mb-8">
-            <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
-              <Heart className="h-4 w-4 text-white" />
+            <div className="h-7 w-7 flex items-center justify-center">
+              <img src="/favicon.ico" alt="Logo" className="h-4 w-4" />
             </div>
-            <h2 className="text-lg font-semibold">Vaquinhas</h2>
+            <h2 className="text-lg font-semibold">Velório Solidário</h2>
           </div>
           <div className="space-y-1">
             {navigationItems.map((item) => (

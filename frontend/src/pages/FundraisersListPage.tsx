@@ -1,22 +1,22 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { 
-  Plus, 
-  Search, 
-  Eye, 
-  Edit, 
-  Trash2, 
-  Share2, 
-  Globe, 
-  FileSearch, 
+import {
+  Plus,
+  Search,
+  Eye,
+  Edit,
+  Trash2,
+  Share2,
+  Globe,
+  FileSearch,
   MoreVertical,
-  Filter
+  Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
+import {
   Table,
   TableBody,
   TableCell,
@@ -42,7 +42,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MoneyProgressBar } from "@/components/ui/money-progress-bar";
@@ -52,7 +58,9 @@ import { toast } from "react-hot-toast";
 
 export const FundraisersListPage = () => {
   const [fundraisers, setFundraisers] = useState<Fundraiser[]>([]);
-  const [filteredFundraisers, setFilteredFundraisers] = useState<Fundraiser[]>([]);
+  const [filteredFundraisers, setFilteredFundraisers] = useState<Fundraiser[]>(
+    []
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -66,14 +74,15 @@ export const FundraisersListPage = () => {
     let filtered = fundraisers;
 
     if (searchQuery) {
-      filtered = filtered.filter(f => 
-        f.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        f.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      filtered = filtered.filter(
+        (f) =>
+          f.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          f.description?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
     if (statusFilter !== "all") {
-      filtered = filtered.filter(f => f.status === statusFilter);
+      filtered = filtered.filter((f) => f.status === statusFilter);
     }
 
     setFilteredFundraisers(filtered);
@@ -86,7 +95,7 @@ export const FundraisersListPage = () => {
       setFundraisers(data);
       setFilteredFundraisers(data);
     } catch (error) {
-      console.error('Error fetching fundraisers:', error);
+      console.error("Error fetching fundraisers:", error);
     } finally {
       setIsLoading(false);
     }
@@ -95,10 +104,10 @@ export const FundraisersListPage = () => {
   const handleDelete = async (id: string) => {
     try {
       await fundraisersService.delete(id);
-      setFundraisers(prev => prev.filter(f => f.id !== id));
-      toast.success('Vaquinha excluída com sucesso!');
+      setFundraisers((prev) => prev.filter((f) => f.id !== id));
+      toast.success("Vaquinha excluída com sucesso!");
     } catch (error) {
-      console.error('Error deleting fundraiser:', error);
+      console.error("Error deleting fundraiser:", error);
     }
   };
 
@@ -106,14 +115,14 @@ export const FundraisersListPage = () => {
     try {
       if (!fundraiser.is_public) {
         await fundraisersService.makePublic(fundraiser.id);
-        toast.success('Vaquinha tornada pública com sucesso!');
+        toast.success("Vaquinha tornada pública com sucesso!");
       } else {
         await fundraisersService.update(fundraiser.id, { is_public: false });
-        toast.success('Vaquinha tornada privada com sucesso!');
+        toast.success("Vaquinha tornada privada com sucesso!");
       }
       fetchFundraisers();
     } catch (error) {
-      console.error('Error toggling public status:', error);
+      console.error("Error toggling public status:", error);
     }
   };
 
@@ -121,40 +130,52 @@ export const FundraisersListPage = () => {
     try {
       const { audit_token } = await fundraisersService.generateAuditToken(id);
       const auditUrl = `${window.location.origin}/a/${audit_token}`;
-      
+
       await navigator.clipboard.writeText(auditUrl);
-      toast.success('Link de auditoria copiado para a área de transferência!');
+      toast.success("Link de auditoria copiado para a área de transferência!");
     } catch (error) {
-      console.error('Error generating audit link:', error);
+      console.error("Error generating audit link:", error);
     }
   };
 
   const copyPublicLink = async (publicSlug: string) => {
     const publicUrl = `${window.location.origin}/p/${publicSlug}`;
     await navigator.clipboard.writeText(publicUrl);
-    toast.success('Link público copiado para a área de transferência!');
+    toast.success("Link público copiado para a área de transferência!");
   };
 
   const getStatusBadge = (status: string) => {
     const variants = {
-      ACTIVE: { variant: "default" as const, label: "Ativa", className: "bg-success text-success-foreground" },
-      PAUSED: { variant: "secondary" as const, label: "Pausada", className: "bg-warning text-warning-foreground" },
-      FINISHED: { variant: "destructive" as const, label: "Finalizada", className: "" }
+      ACTIVE: {
+        variant: "default" as const,
+        label: "Ativa",
+        className: "bg-success text-success-foreground",
+      },
+      PAUSED: {
+        variant: "secondary" as const,
+        label: "Pausada",
+        className: "bg-warning text-warning-foreground",
+      },
+      FINISHED: {
+        variant: "destructive" as const,
+        label: "Finalizada",
+        className: "",
+      },
     };
-    
+
     const config = variants[status as keyof typeof variants] || variants.ACTIVE;
     return <Badge className={config.className}>{config.label}</Badge>;
   };
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
     }).format(value);
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR');
+    return new Date(dateString).toLocaleDateString("pt-BR");
   };
 
   if (isLoading) {
@@ -169,8 +190,8 @@ export const FundraisersListPage = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-3xl font-bold">Minhas Vaquinhas</h1>
-        <Button 
-          onClick={() => navigate('/app/fundraisers/new')}
+        <Button
+          onClick={() => navigate("/app/fundraisers/new")}
           className="gradient-primary text-white shadow-medium hover:shadow-strong transition-smooth"
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -185,7 +206,7 @@ export const FundraisersListPage = () => {
           description="Você ainda não criou nenhuma vaquinha. Crie sua primeira campanha agora!"
           action={{
             label: "Criar vaquinha",
-            onClick: () => navigate('/app/fundraisers/new')
+            onClick: () => navigate("/app/fundraisers/new"),
           }}
         />
       ) : (
@@ -222,11 +243,16 @@ export const FundraisersListPage = () => {
           {/* Table/Cards */}
           <div className="grid gap-4 md:hidden">
             {filteredFundraisers.map((fundraiser) => (
-              <Card key={fundraiser.id} className="gradient-card border-0 shadow-soft">
+              <Card
+                key={fundraiser.id}
+                className="gradient-card border-0 shadow-soft"
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
-                      <CardTitle className="text-lg">{fundraiser.title}</CardTitle>
+                      <CardTitle className="text-lg">
+                        {fundraiser.title}
+                      </CardTitle>
                       <div className="flex items-center gap-2">
                         {getStatusBadge(fundraiser.status)}
                         {fundraiser.is_public && (
@@ -244,47 +270,74 @@ export const FundraisersListPage = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => navigate(`/app/fundraisers/${fundraiser.id}`)}>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            navigate(
+                              `/app/fundraisers/${fundraiser.id}/control`
+                            )
+                          }
+                        >
                           <Eye className="mr-2 h-4 w-4" />
-                          Ver detalhes
+                          Controlar vaquinha
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => navigate(`/app/fundraisers/${fundraiser.id}/edit`)}>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            navigate(`/app/fundraisers/${fundraiser.id}/edit`)
+                          }
+                        >
                           <Edit className="mr-2 h-4 w-4" />
                           Editar
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handleTogglePublic(fundraiser)}>
+                        <DropdownMenuItem
+                          onClick={() => handleTogglePublic(fundraiser)}
+                        >
                           <Globe className="mr-2 h-4 w-4" />
-                          {fundraiser.is_public ? 'Tornar Privada' : 'Tornar Pública'}
+                          {fundraiser.is_public
+                            ? "Tornar Privada"
+                            : "Tornar Pública"}
                         </DropdownMenuItem>
                         {fundraiser.public_slug && (
-                          <DropdownMenuItem onClick={() => copyPublicLink(fundraiser.public_slug!)}>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              copyPublicLink(fundraiser.public_slug!)
+                            }
+                          >
                             <Share2 className="mr-2 h-4 w-4" />
                             Copiar link público
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuItem onClick={() => handleGenerateAuditLink(fundraiser.id)}>
+                        <DropdownMenuItem
+                          onClick={() => handleGenerateAuditLink(fundraiser.id)}
+                        >
                           <FileSearch className="mr-2 h-4 w-4" />
                           Link de auditoria
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                            <DropdownMenuItem
+                              onSelect={(e) => e.preventDefault()}
+                            >
                               <Trash2 className="mr-2 h-4 w-4" />
                               Excluir
                             </DropdownMenuItem>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                              <AlertDialogTitle>
+                                Confirmar exclusão
+                              </AlertDialogTitle>
                               <AlertDialogDescription>
-                                Esta ação não pode ser desfeita. A vaquinha será permanentemente excluída.
+                                Esta ação não pode ser desfeita. A vaquinha será
+                                permanentemente excluída.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDelete(fundraiser.id)}>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(fundraiser.id)}
+                              >
                                 Excluir
                               </AlertDialogAction>
                             </AlertDialogFooter>
@@ -297,8 +350,12 @@ export const FundraisersListPage = () => {
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span>Meta: {formatCurrency(fundraiser.goal_amount)}</span>
-                      <span>Criada em: {formatDate(fundraiser.created_at)}</span>
+                      <span>
+                        Meta: {formatCurrency(fundraiser.goal_amount)}
+                      </span>
+                      <span>
+                        Criada em: {formatDate(fundraiser.created_at)}
+                      </span>
                     </div>
                     <MoneyProgressBar
                       current={fundraiser.current_amount}
@@ -343,8 +400,12 @@ export const FundraisersListPage = () => {
                       </div>
                     </TableCell>
                     <TableCell>{getStatusBadge(fundraiser.status)}</TableCell>
-                    <TableCell>{formatCurrency(fundraiser.goal_amount)}</TableCell>
-                    <TableCell>{formatCurrency(fundraiser.current_amount)}</TableCell>
+                    <TableCell>
+                      {formatCurrency(fundraiser.goal_amount)}
+                    </TableCell>
+                    <TableCell>
+                      {formatCurrency(fundraiser.current_amount)}
+                    </TableCell>
                     <TableCell>
                       <div className="w-32">
                         <MoneyProgressBar
@@ -363,47 +424,76 @@ export const FundraisersListPage = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => navigate(`/app/fundraisers/${fundraiser.id}`)}>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              navigate(
+                                `/app/fundraisers/${fundraiser.id}/control`
+                              )
+                            }
+                          >
                             <Eye className="mr-2 h-4 w-4" />
-                            Ver detalhes
+                            Controlar vaquinha
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => navigate(`/app/fundraisers/${fundraiser.id}/edit`)}>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              navigate(`/app/fundraisers/${fundraiser.id}/edit`)
+                            }
+                          >
                             <Edit className="mr-2 h-4 w-4" />
                             Editar
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleTogglePublic(fundraiser)}>
+                          <DropdownMenuItem
+                            onClick={() => handleTogglePublic(fundraiser)}
+                          >
                             <Globe className="mr-2 h-4 w-4" />
-                            {fundraiser.is_public ? 'Tornar Privada' : 'Tornar Pública'}
+                            {fundraiser.is_public
+                              ? "Tornar Privada"
+                              : "Tornar Pública"}
                           </DropdownMenuItem>
                           {fundraiser.public_slug && (
-                            <DropdownMenuItem onClick={() => copyPublicLink(fundraiser.public_slug!)}>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                copyPublicLink(fundraiser.public_slug!)
+                              }
+                            >
                               <Share2 className="mr-2 h-4 w-4" />
                               Copiar link público
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem onClick={() => handleGenerateAuditLink(fundraiser.id)}>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              handleGenerateAuditLink(fundraiser.id)
+                            }
+                          >
                             <FileSearch className="mr-2 h-4 w-4" />
                             Link de auditoria
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                              <DropdownMenuItem
+                                onSelect={(e) => e.preventDefault()}
+                              >
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Excluir
                               </DropdownMenuItem>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                                <AlertDialogTitle>
+                                  Confirmar exclusão
+                                </AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Esta ação não pode ser desfeita. A vaquinha será permanentemente excluída.
+                                  Esta ação não pode ser desfeita. A vaquinha
+                                  será permanentemente excluída.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(fundraiser.id)}>
+                                <AlertDialogAction
+                                  onClick={() => handleDelete(fundraiser.id)}
+                                >
                                   Excluir
                                 </AlertDialogAction>
                               </AlertDialogFooter>

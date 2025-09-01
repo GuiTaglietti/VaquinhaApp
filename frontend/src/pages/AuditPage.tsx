@@ -38,7 +38,7 @@ type ContributionLike = {
   amount: number | string;
   message?: string | null;
   is_anonymous: boolean;
-  status: "PENDING" | "PAID" | "FAILED" | string;
+  payment_status: "pending" | "paid" | "failed" | string;
   created_at: string;
 };
 
@@ -167,17 +167,20 @@ export const AuditPage = () => {
   const toNumber = (v: number | string) =>
     typeof v === "string" ? Number(v) : v;
   const totalPaid = contributions
-    .filter((c) => (c.status ?? "").toString().toUpperCase() === "PAID")
+    .filter((c) => (c.payment_status ?? "").toString().toUpperCase() === "PAID")
     .reduce((sum, c) => sum + (toNumber(c.amount) || 0), 0);
   const totalPending = contributions
-    .filter((c) => (c.status ?? "").toString().toUpperCase() === "PENDING")
+    .filter((c) => (c.payment_status ?? "").toString().toUpperCase() === "PENDING")
     .reduce((sum, c) => sum + (toNumber(c.amount) || 0), 0);
   const totalFailed = contributions
-    .filter((c) => (c.status ?? "").toString().toUpperCase() === "FAILED")
+    .filter((c) => (c.payment_status ?? "").toString().toUpperCase() === "FAILED")
     .reduce((sum, c) => sum + (toNumber(c.amount) || 0), 0);
 
   const goal = toNumber(fundraiser.goal_amount || 0) || 0;
   const current = toNumber(fundraiser.current_amount || 0) || 0;
+
+  console.log('Fundraiser:', fundraiser);
+  console.log('Contributions:', contributions);
 
   return (
     <div className="min-h-screen bg-background">
@@ -370,7 +373,7 @@ export const AuditPage = () => {
               ) : (
                 <div className="space-y-3">
                   {contributions.map((c) => {
-                    const status = (c.status ?? "").toString().toUpperCase();
+                    const status = (c.payment_status ?? "").toString().toUpperCase();
                     return (
                       <div
                         key={c.id}

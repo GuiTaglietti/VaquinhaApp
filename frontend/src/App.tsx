@@ -22,6 +22,7 @@ import { ProfilePage } from "@/pages/ProfilePage";
 import { BankAccountsPage } from "@/pages/BankAccountsPage";
 import { ExplorePage } from "@/pages/ExplorePage";
 import { ExploreFundraiserPage } from "@/pages/ExploreFundraiserPage";
+import { FundraiserControlPage } from "@/pages/FundraiserControlPage";
 
 // Public Pages
 import { PublicFundraiserPage } from "@/pages/PublicFundraiserPage";
@@ -29,6 +30,9 @@ import { AuditPage } from "@/pages/AuditPage";
 
 // 404 Page
 import NotFound from "./pages/NotFound";
+
+// Email confirm
+import ConfirmEmailResultPage from "@/pages/ConfirmEmailResultPage";
 
 const queryClient = new QueryClient();
 
@@ -159,6 +163,17 @@ const App = () => (
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/app/fundraisers/:id/control"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <FundraiserControlPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/auth/confirm" element={<ConfirmEmailResultPage />} />
 
           {/* Default redirects */}
           <Route path="/" element={<Navigate to="/app" replace />} />

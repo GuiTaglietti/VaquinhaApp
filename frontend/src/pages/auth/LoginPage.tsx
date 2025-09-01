@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useAuthStore } from "@/store/auth";
 import { LoginRequest } from "@/types";
-import heroImage from "@/assets/hero-image.jpg";
+import heroImage from "@/assets/hero-image.jpeg";
 
 export const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -37,19 +37,6 @@ export const LoginPage = () => {
           style={{ backgroundImage: `url(${heroImage})` }}
         />
         <div className="absolute inset-0 gradient-hero opacity-90" />
-        <div className="relative flex flex-col justify-center items-center text-white p-12">
-          <div className="text-center space-y-6">
-            <div className="flex items-center justify-center gap-3">
-              <div className="h-12 w-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                <Heart className="h-6 w-6" />
-              </div>
-              <h1 className="text-3xl font-bold">Vaquinhas Solidárias</h1>
-            </div>
-            <p className="text-lg opacity-90 max-w-md">
-              Conecte corações, realize sonhos. Crie sua vaquinha e transforme vidas através da solidariedade.
-            </p>
-          </div>
-        </div>
       </div>
 
       {/* Right side - Login Form */}

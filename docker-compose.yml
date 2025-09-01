@@ -9,6 +9,11 @@ services:
       - "55432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vaquinhas_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   backend:
     build: ./backend
@@ -17,11 +22,13 @@ services:
     ports:
       - "5055:5000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     volumes:
       - ./backend/app:/app/app
     environment:
       - FLASK_ENV=development
+    command: ["/app/entrypoint.sh"]
 
   frontend:
     image: node:20
@@ -44,7 +51,6 @@ services:
         npm ci &&
         npm run dev
       "
-
 
 volumes:
   db_data:

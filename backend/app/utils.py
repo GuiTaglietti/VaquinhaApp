@@ -2,12 +2,11 @@ import re
 import uuid
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
-
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from passlib.hash import bcrypt
-
 from flask import current_app
-
+from .models import User, BankAccount
+from datetime import timezone
 
 def generate_slug(title: str) -> str:
     slug_base = re.sub(r"[^a-zA-Z0-9]+", "-", title.lower()).strip("-")
@@ -16,20 +15,14 @@ def generate_slug(title: str) -> str:
 
 
 def hash_password(password: str) -> str:
-    """Gera o hash de uma senha usando bcrypt."""
     return bcrypt.hash(password)
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    """Verifica se a senha fornecida corresponde ao hash armazenado."""
     return bcrypt.verify(password, password_hash)
 
 
 def generate_audit_token(fundraiser_id: str, expires_in: int = 3600) -> Tuple[str, datetime]:
-    """Cria um token de auditoria assinado que expira após ``expires_in`` segundos.
-
-    Retorna o token e a data de expiração.
-    """
     secret = current_app.config["AUDIT_TOKEN_SECRET"]
     serializer = URLSafeTimedSerializer(secret)
     expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
@@ -38,10 +31,6 @@ def generate_audit_token(fundraiser_id: str, expires_in: int = 3600) -> Tuple[st
 
 
 def validate_audit_token(token: str) -> Optional[str]:
-    """Valida o token de auditoria e retorna o ID da vaquinha se válido.
-
-    Caso o token esteja expirado ou seja inválido, retorna ``None``.
-    """
     secret = current_app.config.get("AUDIT_TOKEN_SECRET")
     serializer = URLSafeTimedSerializer(secret)
     try:
@@ -53,3 +42,62 @@ def validate_audit_token(token: str) -> Optional[str]:
         return fundraiser_id
     except (BadSignature, SignatureExpired):
         return None
+    
+_ONLY_DIGITS = re.compile(r"\D+")
+
+def only_digits(s: Optional[str]) -> Optional[str]:
+    if not s:
+        return s
+    return _ONLY_DIGITS.sub("", s)
+
+def validate_cpf(num: str) -> bool:
+    s = only_digits(num) or ""
+    if len(s) != 11 or len(set(s)) == 1:
+        return False
+    def dv(digs):
+        soma = sum(int(d)*w for d, w in zip(digs, range(len(digs)+1, 1, -1)))
+        r = (soma * 10) % 11
+        return 0 if r == 10 else r
+    return dv(s[:9]) == int(s[9]) and dv(s[:10]) == int(s[10])
+
+def validate_cnpj(num: str) -> bool:
+    s = only_digits(num) or ""
+    if len(s) != 14 or len(set(s)) == 1:
+        return False
+    def dv(digs, pesos):
+        soma = sum(int(d)*p for d, p in zip(digs, pesos))
+        r = soma % 11
+        return 0 if r < 2 else 11 - r
+    p1 = [5,4,3,2,9,8,7,6,5,4,3,2]
+    p2 = [6] + p1
+    return dv(s[:12], p1) == int(s[12]) and dv(s[:13], p2) == int(s[13])
+
+def is_profile_complete(u: User) -> bool:
+    required = [
+        u.name,
+        u.document_type,
+        u.document_number,
+        u.phone,
+        u.addr_street,
+        u.addr_number,
+        u.addr_neighborhood,
+        u.addr_city,
+        u.addr_state,
+        u.addr_zip_code,
+    ]
+    if not all(bool(x) for x in required):
+        return False
+    if u.document_type == "CPF" and not validate_cpf(u.document_number or ""):
+        return False
+    if u.document_type == "CNPJ" and not validate_cnpj(u.document_number or ""):
+        return False
+    return True
+
+def user_has_bank_account(u: User) -> bool:
+    return bool(u.bank_accounts and len(u.bank_accounts) > 0)
+
+def iso_utc(dt):
+    if not dt:
+        return None
+    
+    return dt.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")

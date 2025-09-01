@@ -8,8 +8,7 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  
-  // Actions
+
   login: (data: LoginRequest) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => void;
@@ -28,12 +27,10 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: true });
           
           const tokens = await authService.login(data);
-          
-          // Store tokens in localStorage
+
           localStorage.setItem('access_token', tokens.access);
           localStorage.setItem('refresh_token', tokens.refresh);
-          
-          // Fetch user data
+
           await get().fetchUser();
           
           toast.success('Login realizado com sucesso!');
@@ -51,7 +48,7 @@ export const useAuthStore = create<AuthState>()(
           
           await authService.register(data);
           
-          toast.success('Conta criada com sucesso! Faça login para continuar.');
+          toast.success('Enviamos um e-mail de confirmação para confirmar sua conta!');
         } catch (error) {
           console.error('Register error:', error);
           throw error;
@@ -87,7 +84,6 @@ export const useAuthStore = create<AuthState>()(
           });
         } catch (error) {
           console.error('Fetch user error:', error);
-          // If token is invalid, logout
           get().logout();
         } finally {
           set({ isLoading: false });

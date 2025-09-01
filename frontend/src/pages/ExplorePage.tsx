@@ -97,7 +97,7 @@ export const ExplorePage = () => {
   };
 
   const handleViewFundraiser = (slug: string) => {
-    navigate(`/explore/${slug}`);
+    navigate(`/app/explore/${slug}`);
   };
 
   const formatCurrency = (amount: number) => {

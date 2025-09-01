@@ -97,11 +97,11 @@ export const ContributionsPage = () => {
   }
 
   const totalContributed = contributions
-    .filter(c => c.status === 'PAID')
+    .filter(c => c.payment_status === 'paid')
     .reduce((sum, c) => sum + c.amount, 0);
 
   const totalPending = contributions
-    .filter(c => c.status === 'PENDING')
+    .filter(c => c.payment_status === 'pending')
     .reduce((sum, c) => sum + c.amount, 0);
 
   return (
@@ -208,9 +208,8 @@ export const ContributionsPage = () => {
               </p>
               <Button 
                 className="gradient-primary text-white shadow-medium hover:shadow-strong transition-smooth"
-                onClick={() => window.open('/', '_blank')}
               >
-                Explorar Mais Vaquinhas
+                <Link to="/app/explore">Explorar mais vaquinhas.</Link>
               </Button>
             </div>
           </div>

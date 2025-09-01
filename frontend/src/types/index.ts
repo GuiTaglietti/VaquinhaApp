@@ -61,7 +61,7 @@ export interface Contribution {
   amount: number;
   message?: string;
   is_anonymous: boolean;
-  status: "PENDING" | "PAID" | "FAILED";
+  payment_status: "pending" | "paid" | "failed";
   created_at: string;
   fundraiser?: {
     id: string;
@@ -151,6 +151,8 @@ export interface DashboardStats {
   total_raised: number;
   total_contributions: number;
 }
+
+export * from './withdrawals';
 
 export const BRAZILIAN_STATES = [
   { value: "AC", label: "Acre" },
