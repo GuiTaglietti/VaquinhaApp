@@ -334,7 +334,7 @@ export const BankAccountsPage = () => {
         <EmptyState
           icon={CreditCard}
           title="Nenhuma conta bancária"
-          description="Adicione uma conta bancária para receber doações das suas vaquinhas."
+          description="Adicione uma conta bancária para receber doações das suas arrecadações."
           action={{
             label: "Adicionar Conta",
             onClick: () => handleOpenDialog(),

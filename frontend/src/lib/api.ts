@@ -1,18 +1,20 @@
-import axios from 'axios';
-import { toast } from 'react-hot-toast';
+import axios from "axios";
+import { toast } from "react-hot-toast";
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:5055/api',
+  baseURL: import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api`
+    : "http://localhost:5055/api",
   timeout: 10000,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
+    const token = localStorage.getItem("access_token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -30,7 +32,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      const refreshToken = localStorage.getItem('refresh_token');
+      const refreshToken = localStorage.getItem("refresh_token");
       if (refreshToken) {
         try {
           const response = await axios.post(
@@ -44,30 +46,57 @@ api.interceptors.response.use(
           );
 
           const { access } = response.data;
-          localStorage.setItem('access_token', access);
+          localStorage.setItem("access_token", access);
 
           // Retry original request with new token
           originalRequest.headers.Authorization = `Bearer ${access}`;
           return api(originalRequest);
         } catch (refreshError) {
-          // Refresh failed, logout user
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          window.location.href = '/auth/login';
+          // Only redirect to login if we're not on a public route
+          const isPublicRoute =
+            window.location.pathname === "/" ||
+            window.location.pathname.startsWith("/explore") ||
+            window.location.pathname.startsWith("/p/") ||
+            window.location.pathname.startsWith("/a/") ||
+            window.location.pathname.startsWith("/auth/");
+
+          if (!isPublicRoute) {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("refresh_token");
+            window.location.href = "/auth/login";
+          }
           return Promise.reject(refreshError);
         }
       } else {
-        // No refresh token, logout user
-        localStorage.removeItem('access_token');
-        window.location.href = '/auth/login';
+        // Only redirect to login if we're not on a public route
+        const isPublicRoute =
+          window.location.pathname === "/" ||
+          window.location.pathname.startsWith("/explore") ||
+          window.location.pathname.startsWith("/p/") ||
+          window.location.pathname.startsWith("/a/") ||
+          window.location.pathname.startsWith("/auth/");
+
+        if (!isPublicRoute) {
+          localStorage.removeItem("access_token");
+          window.location.href = "/auth/login";
+        }
       }
     }
 
-    // Show error toast for other errors
-    if (error.response?.data?.message) {
-      toast.error(error.response.data.message);
-    } else {
-      toast.error('Erro inesperado. Tente novamente.');
+    // Show error toast for other errors (but not for 401 on public routes)
+    const isPublicRoute =
+      window.location.pathname === "/" ||
+      window.location.pathname.startsWith("/explore") ||
+      window.location.pathname.startsWith("/p/") ||
+      window.location.pathname.startsWith("/a/") ||
+      window.location.pathname.startsWith("/auth/");
+
+    if (error.response?.status !== 401 || !isPublicRoute) {
+      if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error("Erro inesperado. Tente novamente.");
+      }
     }
 
     return Promise.reject(error);

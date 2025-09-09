@@ -10,6 +10,8 @@ import {
   LogOut,
   Settings,
   Globe,
+  Shield,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -21,7 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent } from "@/components/ui/sheet"; // <- sem SheetTrigger
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useAuthStore } from "@/store/auth";
 import { cn } from "@/lib/utils";
 
@@ -31,13 +33,21 @@ interface AppShellProps {
 
 const navigationItems = [
   { name: "Dashboard", href: "/app", icon: BarChart3 },
-  { name: "Minhas Vaquinhas", href: "/app/fundraisers", icon: Heart },
-  { name: "Nova Vaquinha", href: "/app/fundraisers/new", icon: Plus },
-  { name: "Explorar Vaquinhas", href: "/app/explore", icon: Globe },
+  { name: "Minhas Arrecadações", href: "/app/fundraisers", icon: Heart },
+  { name: "Nova Arrecadação", href: "/app/fundraisers/new", icon: Plus },
+  { name: "Explorar Arrecadações", href: "/app/explore", icon: Globe },
   { name: "Minhas Contribuições", href: "/app/contributions", icon: HandHeart },
+  { name: "Segurança", href: "/app/security", icon: Shield },
+  { name: "Notas Fiscais", href: "/app/invoices", icon: Receipt },
 ];
 
-const Sidebar = ({ className }: { className?: string }) => {
+const Sidebar = ({
+  className,
+  onNavigate,
+}: {
+  className?: string;
+  onNavigate?: () => void;
+}) => {
   const location = useLocation();
 
   return (
@@ -50,11 +60,13 @@ const Sidebar = ({ className }: { className?: string }) => {
             </div>
             <h2 className="text-lg font-semibold">Velório Solidário</h2>
           </div>
+
           <div className="space-y-1">
             {navigationItems.map((item) => (
               <Link
                 key={item.href}
                 to={item.href}
+                onClick={onNavigate}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-smooth",
                   location.pathname === item.href
@@ -128,6 +140,16 @@ const UserDropdown = () => {
           </Link>
         </DropdownMenuItem>
 
+        <DropdownMenuItem>
+          <Shield className="mr-2 h-4 w-4" />
+          <Link to="/app/security">Segurança</Link>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem>
+          <Receipt className="mr-2 h-4 w-4" />
+          <Link to="/app/invoices">Notas Fiscais</Link>
+        </DropdownMenuItem>
+
         <DropdownMenuSeparator />
 
         <DropdownMenuItem onClick={handleLogout}>
@@ -147,21 +169,21 @@ export const AppShell = ({ children }: AppShellProps) => {
       {/* Mobile sidebar */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <SheetContent side="left" className="w-64 p-0">
-          <Sidebar />
+          <Sidebar onNavigate={() => setSidebarOpen(false)} />
         </SheetContent>
       </Sheet>
 
       {/* Desktop sidebar */}
       <div className="hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col">
         <div className="flex flex-col overflow-y-auto border-r bg-sidebar shadow-soft">
-          <Sidebar />
+          <Sidebar onNavigate={() => setSidebarOpen(false)} />
         </div>
       </div>
 
       <div className="md:pl-64">
         {/* Top navigation */}
         <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b bg-background px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
-          {/* Botão mobile que controla o Sheet via estado (sem SheetTrigger) */}
+          {/* Botão mobile para abrir o menu */}
           <Button
             variant="ghost"
             size="sm"

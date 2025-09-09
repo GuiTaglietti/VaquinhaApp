@@ -1,17 +1,21 @@
+// src/App.tsx
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster as HotToaster } from "react-hot-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-// Layout Components
+// Layout
 import { AppShell } from "@/components/layout/app-shell";
+import { PublicShell } from "@/components/layout/public-shell";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 // Auth Pages
 import { LoginPage } from "@/pages/auth/LoginPage";
 import { RegisterPage } from "@/pages/auth/RegisterPage";
+import { ForgotPasswordPage } from "@/pages/auth/ForgotPasswordPage";
+import { ResetPasswordPage } from "@/pages/auth/ResetPasswordPage";
 
 // Protected Pages
 import { DashboardPage } from "@/pages/DashboardPage";
@@ -23,12 +27,15 @@ import { BankAccountsPage } from "@/pages/BankAccountsPage";
 import { ExplorePage } from "@/pages/ExplorePage";
 import { ExploreFundraiserPage } from "@/pages/ExploreFundraiserPage";
 import { FundraiserControlPage } from "@/pages/FundraiserControlPage";
+import { SecurityPage } from "@/pages/SecurityPage";
+import { InvoicesPage } from "@/pages/InvoicesPage";
 
 // Public Pages
 import { PublicFundraiserPage } from "@/pages/PublicFundraiserPage";
 import { AuditPage } from "@/pages/AuditPage";
+import { PublicHomePage } from "@/pages/PublicHomePage";
 
-// 404 Page
+// 404
 import NotFound from "./pages/NotFound";
 
 // Email confirm
@@ -49,10 +56,7 @@ const App = () => (
             border: "1px solid hsl(var(--border))",
           },
           success: {
-            iconTheme: {
-              primary: "hsl(var(--success))",
-              secondary: "white",
-            },
+            iconTheme: { primary: "hsl(var(--success))", secondary: "white" },
           },
           error: {
             iconTheme: {
@@ -66,13 +70,26 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          {/* Public Routes */}
+          {/* PUBLIC */}
+          <Route path="/" element={<PublicHomePage />} />
+          <Route path="/explore" element={
+            <PublicShell>
+              <ExplorePage />
+            </PublicShell>
+          } />
+          <Route path="/p/:slug" element={
+            <PublicShell>
+              <PublicFundraiserPage />
+            </PublicShell>
+          } />
+          <Route path="/a/:token" element={<AuditPage />} />
           <Route path="/auth/login" element={<LoginPage />} />
           <Route path="/auth/register" element={<RegisterPage />} />
-          <Route path="/p/:slug" element={<PublicFundraiserPage />} />
-          <Route path="/a/:token" element={<AuditPage />} />
+          <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/auth/confirm" element={<ConfirmEmailResultPage />} />
 
-          {/* Protected Routes */}
+          {/* PROTECTED (/app/...) */}
           <Route
             path="/app"
             element={
@@ -114,6 +131,33 @@ const App = () => (
             }
           />
           <Route
+            path="/app/explore"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <ExplorePage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/app/explore/:slug"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <ExploreFundraiserPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/app/fundraisers/:id/control" element={
+            <ProtectedRoute>
+              <AppShell>
+                <FundraiserControlPage />
+              </AppShell>
+            </ProtectedRoute>
+          } />
+          <Route
             path="/app/contributions"
             element={
               <ProtectedRoute>
@@ -144,39 +188,25 @@ const App = () => (
             }
           />
           <Route
-            path="/app/explore"
+            path="/app/security"
             element={
               <ProtectedRoute>
                 <AppShell>
-                  <ExplorePage />
+                  <SecurityPage />
                 </AppShell>
               </ProtectedRoute>
             }
           />
           <Route
-            path="/app/explore/:slug"
+            path="/app/invoices"
             element={
               <ProtectedRoute>
                 <AppShell>
-                  <ExploreFundraiserPage />
+                  <InvoicesPage />
                 </AppShell>
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/app/fundraisers/:id/control"
-            element={
-              <ProtectedRoute>
-                <AppShell>
-                  <FundraiserControlPage />
-                </AppShell>
-              </ProtectedRoute>
-            }
-          />
-          <Route path="/auth/confirm" element={<ConfirmEmailResultPage />} />
-
-          {/* Default redirects */}
-          <Route path="/" element={<Navigate to="/app" replace />} />
 
           {/* 404 */}
           <Route path="*" element={<NotFound />} />

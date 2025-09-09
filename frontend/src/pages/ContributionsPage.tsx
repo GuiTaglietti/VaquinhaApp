@@ -90,7 +90,7 @@ export const ContributionsPage = () => {
         <EmptyState
           icon={HandHeart}
           title="Nenhuma contribuição encontrada"
-          description="Você ainda não fez nenhuma contribuição. Explore as vaquinhas públicas e faça sua primeira doação!"
+          description="Você ainda não fez nenhuma contribuição. Explore as arrecadações públicas e faça sua primeira doação!"
         />
       </div>
     );
@@ -156,7 +156,7 @@ export const ContributionsPage = () => {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold">
-                      {contribution.fundraiser?.title || 'Vaquinha não encontrada'}
+                      {contribution.fundraiser?.title || 'Arrecadação não encontrada'}
                     </h3>
                     {contribution.fundraiser?.public_slug && (
                       <Link
@@ -209,7 +209,7 @@ export const ContributionsPage = () => {
               <Button 
                 className="gradient-primary text-white shadow-medium hover:shadow-strong transition-smooth"
               >
-                <Link to="/app/explore">Explorar mais vaquinhas.</Link>
+                <Link to="/app/explore">Explorar mais arrecadações.</Link>
               </Button>
             </div>
           </div>

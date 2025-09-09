@@ -143,7 +143,7 @@ export const AuditPage = () => {
             </h2>
             <p className="text-muted-foreground">
               O token de auditoria é inválido ou expirou. Solicite um novo token
-              ao responsável pela vaquinha.
+              ao responsável pela arrecadação.
             </p>
           </CardContent>
         </Card>
@@ -208,7 +208,7 @@ export const AuditPage = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Eye className="h-5 w-5" />
-                Detalhes da Vaquinha
+                Detalhes da arrecadação
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -415,7 +415,7 @@ export const AuditPage = () => {
               <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
                 Este relatório foi gerado para fins de auditoria e
                 transparência. Todas as informações apresentadas são somente
-                leitura e refletem o estado atual da vaquinha e suas
+                leitura e refletem o estado atual da arrecadação e suas
                 contribuições registradas no sistema.
               </p>
               <p className="text-xs text-muted-foreground mt-3">

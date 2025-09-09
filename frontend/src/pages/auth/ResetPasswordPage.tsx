@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { Eye, EyeOff, Heart } from "lucide-react";
+import { Eye, EyeOff, Heart, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,30 +13,49 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { useAuthStore } from "@/store/auth";
-import { RegisterRequest } from "@/types";
+import { authService } from "@/services/auth";
+import { ResetPasswordRequest } from "@/types";
+import { toast } from "react-hot-toast";
 import heroImage from "@/assets/hero-image.jpeg";
 
-export const RegisterPage = () => {
-  const [showPassword, setShowPassword] = useState(false);
-  const { register: registerUser, isLoading } = useAuthStore();
+interface ResetForm {
+  password: string;
+  confirmPassword: string;
+}
+
+export const ResetPasswordPage = () => {
+  const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
     watch,
-  } = useForm<RegisterRequest & { confirmPassword: string }>();
+  } = useForm<ResetForm>();
   const watchPassword = watch("password");
 
-  const onSubmit = async (data: RegisterRequest) => {
+  const onSubmit = async (data: ResetForm) => {
+    if (!token) {
+      toast.error("Token inválido");
+      return;
+    }
+
     try {
-      await registerUser(data);
+      setIsLoading(true);
+      await authService.resetPassword({
+        token,
+        password: data.password,
+      });
+      toast.success("Senha redefinida com sucesso!");
       navigate("/auth/login");
     } catch (error) {
-      // Error is handled by the store and shown via toast
-      console.error("Register failed:", error);
+      console.error("Reset password failed:", error);
+      toast.error("Erro ao redefinir senha. Token pode ter expirado.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -49,9 +68,23 @@ export const RegisterPage = () => {
           style={{ backgroundImage: `url(${heroImage})` }}
         />
         <div className="absolute inset-0 gradient-hero opacity-90" />
+        <div className="relative flex flex-col justify-center items-center text-white p-12">
+          <div className="text-center space-y-6">
+            <div className="flex items-center justify-center gap-3">
+              <div className="h-7 w-7 flex items-center justify-center">
+                <img src="/favicon.ico" alt="Logo" className="h-4 w-4" />
+              </div>
+              <h1 className="text-3xl font-bold">Velório Solidário</h1>
+            </div>
+            <p className="text-lg opacity-90 max-w-md">
+              Defina uma nova senha segura para sua conta e continue fazendo a
+              diferença.
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Right side - Register Form */}
+      {/* Right side - Reset Password Form */}
       <div className="flex-1 flex flex-col justify-center px-4 sm:px-6 lg:px-8 bg-background">
         <div className="mx-auto w-full max-w-sm">
           <div className="text-center mb-8 lg:hidden">
@@ -66,63 +99,21 @@ export const RegisterPage = () => {
           <Card className="gradient-card border-0 shadow-medium">
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl font-bold text-center">
-                Criar conta
+                Nova Senha
               </CardTitle>
               <CardDescription className="text-center">
-                Preencha os dados abaixo para criar sua conta
+                Digite sua nova senha para redefinir o acesso
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nome completo</Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    placeholder="Seu nome completo"
-                    {...register("name", {
-                      required: "Nome é obrigatório",
-                      minLength: {
-                        value: 2,
-                        message: "Nome deve ter no mínimo 2 caracteres",
-                      },
-                    })}
-                  />
-                  {errors.name && (
-                    <p className="text-sm text-destructive">
-                      {errors.name.message}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">E-mail</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    {...register("email", {
-                      required: "E-mail é obrigatório",
-                      pattern: {
-                        value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                        message: "E-mail inválido",
-                      },
-                    })}
-                  />
-                  {errors.email && (
-                    <p className="text-sm text-destructive">
-                      {errors.email.message}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="password">Senha</Label>
+                  <Label htmlFor="password">Nova Senha</Label>
                   <div className="relative">
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
-                      placeholder="Sua senha"
+                      placeholder="Sua nova senha"
                       {...register("password", {
                         required: "Senha é obrigatória",
                         minLength: {
@@ -153,11 +144,11 @@ export const RegisterPage = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirmar senha</Label>
+                  <Label htmlFor="confirmPassword">Confirmar Nova Senha</Label>
                   <Input
                     id="confirmPassword"
                     type="password"
-                    placeholder="Confirme sua senha"
+                    placeholder="Confirme sua nova senha"
                     {...register("confirmPassword", {
                       required: "Confirmação de senha é obrigatória",
                       validate: (value) =>
@@ -179,23 +170,23 @@ export const RegisterPage = () => {
                   {isLoading ? (
                     <>
                       <LoadingSpinner size="sm" className="mr-2" />
-                      Criando conta...
+                      Redefinindo...
                     </>
                   ) : (
-                    "Criar conta"
+                    <>
+                      <Lock className="h-4 w-4 mr-2" />
+                      Redefinir Senha
+                    </>
                   )}
                 </Button>
               </form>
 
-              <div className="text-center text-sm">
-                <span className="text-muted-foreground">
-                  Já tem uma conta?{" "}
-                </span>
+              <div className="text-center">
                 <Link
                   to="/auth/login"
-                  className="text-primary font-medium hover:text-primary-light transition-fast"
+                  className="text-sm text-primary font-medium hover:text-primary-light transition-fast"
                 >
-                  Faça login
+                  Voltar ao Login
                 </Link>
               </div>
             </CardContent>

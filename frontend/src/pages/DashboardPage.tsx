@@ -129,16 +129,16 @@ export const DashboardPage = () => {
             className="gradient-primary text-white shadow-medium hover:shadow-strong transition-smooth"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Nova Vaquinha
+            Nova arrecadação
           </Button>
         </div>
 
         <EmptyState
           icon={Heart}
-          title="Bem-vindo às Vaquinhas Solidárias!"
-          description="Você ainda não criou nenhuma vaquinha. Que tal começar criando sua primeira campanha de arrecadação?"
+          title="Bem-vindo ao Velório Solidário!"
+          description="Você ainda não criou nenhuma arrecadação. Que tal começar criando sua primeira campanha de arrecadação?"
           action={{
-            label: "Criar primeira vaquinha",
+            label: "Criar primeira arrecadação",
             onClick: () => navigate('/app/fundraisers/new')
           }}
         />
@@ -155,14 +155,14 @@ export const DashboardPage = () => {
           className="gradient-primary text-white shadow-medium hover:shadow-strong transition-smooth"
         >
           <Plus className="w-4 h-4 mr-2" />
-          Nova Vaquinha
+          Nova arrecadação
         </Button>
       </div>
 
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <KPICard
-          title="Total de Vaquinhas"
+          title="Total de arrecadações"
           value={fundraisers.length}
           icon={Heart}
           description="Campanhas criadas"
@@ -177,14 +177,14 @@ export const DashboardPage = () => {
           title="Contribuições Recebidas"
           value={contributionsCount}
           icon={Users}
-          description="Doações para suas vaquinhas"
+          description="Doações para suas arrecadações"
         />
       </div>
 
       {/* Charts */}
       <Tabs defaultValue="progress" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="progress">Progresso das Vaquinhas</TabsTrigger>
+          <TabsTrigger value="progress">Progresso das Arrecadações</TabsTrigger>
           <TabsTrigger value="status">Status das Campanhas</TabsTrigger>
         </TabsList>
         

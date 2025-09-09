@@ -11,7 +11,7 @@ from decimal import Decimal
 APP_FRONTEND_URL = os.getenv("APP_FRONTEND_URL", "http://localhost:5199")
 MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN", "")
 MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY", "")
-MAILGUN_FROM = os.getenv("MAILGUN_FROM", f"Vaquinhas Solidárias <no-reply@{MAILGUN_DOMAIN}>")
+MAILGUN_FROM = os.getenv("MAILGUN_FROM", f"Velório Solidário <no-reply@{MAILGUN_DOMAIN}>")
 
 def _css_vars() -> Dict[str, str]:
     return {
@@ -200,7 +200,7 @@ def build_withdrawal_email_html_admin(
         f"""<a href="{control_url}" style="
               display:inline-block;padding:12px 18px;border-radius:10px;margin-right:8px;
               text-decoration:none;background:{c['muted']};color:#fff;font-weight:600;box-shadow:{c['shadow']}
-            ">Abrir vaquinha</a>"""
+            ">Abrir arrecadação</a>"""
         if control_url else ""
     )
 
@@ -225,7 +225,7 @@ def build_withdrawal_email_html_admin(
     <a href="mailto:{requester_email}" style="color:{c['brand']};text-decoration:none">{requester_email}</a>
   </div>
   <div style="display:flex;justify-content:space-between;margin:6px 0">
-    <span style="color:{c['muted']}">Vaquinha</span>
+    <span style="color:{c['muted']}">Arrecadação</span>
     <strong>{fundraiser_title or "-"}</strong>
   </div>
   <div style="display:flex;justify-content:space-between;margin:6px 0">
@@ -317,7 +317,7 @@ def build_withdrawal_email_html_user(
 
 <div style="border:1px solid {c['border']};border-radius:12px;padding:12px;background:#fff;margin:12px 0">
   <div style="display:flex;justify-content:space-between;margin:6px 0">
-    <span style="color:{c['muted']}">Vaquinha</span>
+    <span style="color:{c['muted']}">Arrecadação</span>
     <strong>{fundraiser_title or "-"}</strong>
   </div>
   <div style="display:flex;justify-content:space-between;margin:6px 0">

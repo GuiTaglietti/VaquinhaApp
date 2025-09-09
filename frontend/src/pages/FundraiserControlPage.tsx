@@ -23,12 +23,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { WithdrawalModal } from "@/components/ui/withdrawal-modal";
+import { FundraiserStatusModal } from "@/components/ui/fundraiser-status-modal";
 import { fundraisersService } from "@/services/fundraisers";
 import { withdrawalsService } from "@/services/withdrawals";
 import { profileService } from "@/services/profile";
 import { Fundraiser } from "@/types";
-import { FundraiserStats, Withdrawal } from "@/types/withdrawals";
+import { FundraiserStats } from "@/types/withdrawals";
 import { BankAccount } from "@/types/profile";
 import { toast } from "react-hot-toast";
 
@@ -41,6 +43,7 @@ export const FundraiserControlPage = () => {
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [withdrawalModalOpen, setWithdrawalModalOpen] = useState(false);
+  const [fundraiserStatus, setFundraiserStatus] = useState("ACTIVE");
 
   const fetchData = async () => {
     if (!id) return;
@@ -56,6 +59,7 @@ export const FundraiserControlPage = () => {
       setFundraiser(fundraiserData);
       setStats(statsData);
       setBankAccounts(bankAccountsData);
+      setFundraiserStatus(fundraiserData.status || "ACTIVE");
     } catch (error) {
       toast.error("Erro ao carregar dados da vaquinha");
       navigate("/app/fundraisers");
@@ -68,28 +72,45 @@ export const FundraiserControlPage = () => {
     fetchData();
   }, [id]);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("pt-BR", {
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
     }).format(value);
-  };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("pt-BR");
-  };
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString("pt-BR");
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "ACTIVE":
-        return "bg-success";
+        return "bg-green-100 text-green-800 border-green-200";
       case "PAUSED":
-        return "bg-warning";
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
       case "FINISHED":
-        return "bg-muted";
+        return "bg-gray-100 text-gray-800 border-gray-200";
       default:
-        return "bg-muted";
+        return "bg-blue-100 text-blue-800 border-blue-200";
     }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "ACTIVE":
+        return "Ativo";
+      case "PAUSED":
+        return "Pausado";
+      case "FINISHED":
+        return "Finalizado";
+      default:
+        return status;
+    }
+  };
+
+  const handleStatusChange = (newStatus: string) => {
+    setFundraiserStatus(newStatus);
+    // Recarrega para refletir valores atualizados, se necessário
+    fetchData();
   };
 
   const getWithdrawalStatusColor = (status: string) => {
@@ -110,7 +131,7 @@ export const FundraiserControlPage = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
@@ -126,40 +147,52 @@ export const FundraiserControlPage = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate("/app/fundraisers")}
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Voltar
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">{fundraiser.title}</h1>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-            <span className="flex items-center gap-1">
-              <Calendar className="h-4 w-4" />
-              Criada em {formatDate(fundraiser.created_at)}
-            </span>
-            {(fundraiser.city || fundraiser.state) && (
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/app/fundraisers")}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Voltar
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">{fundraiser.title}</h1>
+            <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
               <span className="flex items-center gap-1">
-                <MapPin className="h-4 w-4" />
-                {fundraiser.city}, {fundraiser.state}
+                <Calendar className="h-4 w-4" />
+                Criada em {formatDate(fundraiser.created_at)}
               </span>
-            )}
-            <Badge className={getStatusColor(fundraiser.status)}>
-              {fundraiser.status}
-            </Badge>
+              {(fundraiser.city || fundraiser.state) && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-4 w-4" />
+                  {fundraiser.city}, {fundraiser.state}
+                </span>
+              )}
+              <Badge
+                variant="outline"
+                className={getStatusColor(fundraiserStatus)}
+              >
+                {getStatusLabel(fundraiserStatus)}
+              </Badge>
+            </div>
           </div>
         </div>
-        <Button
-          onClick={() => setWithdrawalModalOpen(true)}
-          disabled={stats.available_balance <= 0 || bankAccounts.length === 0}
-        >
-          <Download className="h-4 w-4 mr-2" />
-          Solicitar Saque
-        </Button>
+        <div className="flex gap-2">
+          <FundraiserStatusModal
+            fundraiserId={fundraiser.id}
+            currentStatus={fundraiserStatus}
+            onStatusChange={handleStatusChange}
+          />
+          <Button
+            onClick={() => setWithdrawalModalOpen(true)}
+            disabled={stats.available_balance <= 0 || bankAccounts.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Solicitar Saque
+          </Button>
+        </div>
       </div>
 
       {/* Progress Bar */}

@@ -1,30 +1,64 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { ArrowLeft, Save, Eye } from "lucide-react";
+import {
+  ArrowLeft,
+  Save,
+  Eye,
+  Upload,
+  Link2,
+  AlertTriangle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { fundraisersService } from "@/services/fundraisers";
-import { CreateFundraiserRequest, UpdateFundraiserRequest, BRAZILIAN_STATES } from "@/types";
+import {
+  CreateFundraiserRequest,
+  UpdateFundraiserRequest,
+  BRAZILIAN_STATES,
+} from "@/types";
 import { toast } from "react-hot-toast";
+
+interface FormData extends CreateFundraiserRequest {
+  image_type: "upload" | "url";
+  age_confirmation: boolean;
+  terms_accepted: boolean;
+}
 
 export const FundraiserFormPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditing = Boolean(id);
-  
+
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(isEditing);
-  
-  const { register, handleSubmit, formState: { errors }, watch, setValue, reset } = useForm<CreateFundraiserRequest>();
-  
+  const [imageType, setImageType] = useState<"upload" | "url">("url");
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    watch,
+    setValue,
+    reset,
+  } = useForm<FormData>();
+
   const watchIsPublic = watch("is_public");
+  const watchAgeConfirmation = watch("age_confirmation");
+  const watchTermsAccepted = watch("terms_accepted");
 
   useEffect(() => {
     if (isEditing && id) {
@@ -36,46 +70,59 @@ export const FundraiserFormPage = () => {
     try {
       setIsLoadingData(true);
       const fundraiser = await fundraisersService.getById(id!);
-      
+
       // Reset form with fundraiser data
       reset({
         title: fundraiser.title,
-        description: fundraiser.description || '',
+        description: fundraiser.description || "",
         goal_amount: fundraiser.goal_amount,
-        city: fundraiser.city || '',
-        state: fundraiser.state || '',
-        cover_image_url: fundraiser.cover_image_url || '',
-        is_public: fundraiser.is_public
+        city: fundraiser.city || "",
+        state: fundraiser.state || "",
+        cover_image_url: fundraiser.cover_image_url || "",
+        is_public: fundraiser.is_public,
       });
     } catch (error) {
-      console.error('Error fetching fundraiser:', error);
-      toast.error('Erro ao carregar dados da vaquinha');
-      navigate('/app/fundraisers');
+      console.error("Error fetching fundraiser:", error);
+      toast.error("Erro ao carregar dados da arrecadação");
+      navigate("/app/fundraisers");
     } finally {
       setIsLoadingData(false);
     }
   };
 
-  const onSubmit = async (data: CreateFundraiserRequest) => {
+  const onSubmit = async (data: FormData) => {
     try {
       setIsLoading(true);
-      
+
+      // Prepare the payload without form-specific fields
+      const {
+        image_type,
+        age_confirmation,
+        terms_accepted,
+        ...fundraiserData
+      } = data;
+
       if (isEditing) {
-        await fundraisersService.update(id!, data as UpdateFundraiserRequest);
-        toast.success('Vaquinha atualizada com sucesso!');
+        await fundraisersService.update(
+          id!,
+          fundraiserData as UpdateFundraiserRequest
+        );
+        toast.success("Arrecadação atualizada com sucesso!");
       } else {
-        const result = await fundraisersService.create(data);
-        toast.success('Vaquinha criada com sucesso!');
-        
-        if (result.public_slug && data.is_public) {
-          toast.success('Link público gerado automaticamente!');
+        const result = await fundraisersService.create(fundraiserData);
+        toast.success("Arrecadação criada com sucesso!");
+
+        if (result.public_slug && fundraiserData.is_public) {
+          toast.success("Link público gerado automaticamente!");
         }
       }
-      
-      navigate('/app/fundraisers');
+
+      navigate("/app/fundraisers");
     } catch (error) {
-      console.error('Error saving fundraiser:', error);
-      toast.error(isEditing ? 'Erro ao atualizar vaquinha' : 'Erro ao criar vaquinha');
+      console.error("Error saving fundraiser:", error);
+      toast.error(
+        isEditing ? "Erro ao atualizar arrecadação" : "Erro ao criar arrecadação"
+      );
     } finally {
       setIsLoading(false);
     }
@@ -94,13 +141,13 @@ export const FundraiserFormPage = () => {
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
-          onClick={() => navigate('/app/fundraisers')}
+          onClick={() => navigate("/app/fundraisers")}
           className="p-2"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <h1 className="text-3xl font-bold">
-          {isEditing ? 'Editar Vaquinha' : 'Nova Vaquinha'}
+          {isEditing ? "Editar Arrecadação" : "Nova Arrecadação"}
         </h1>
       </div>
 
@@ -115,7 +162,8 @@ export const FundraiserFormPage = () => {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="title">
-                    Título da Vaquinha <span className="text-destructive">*</span>
+                    Título da Arrecadação{" "}
+                    <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     id="title"
@@ -124,18 +172,21 @@ export const FundraiserFormPage = () => {
                       required: "Título é obrigatório",
                       minLength: {
                         value: 5,
-                        message: "Título deve ter no mínimo 5 caracteres"
-                      }
+                        message: "Título deve ter no mínimo 5 caracteres",
+                      },
                     })}
                   />
                   {errors.title && (
-                    <p className="text-sm text-destructive">{errors.title.message}</p>
+                    <p className="text-sm text-destructive">
+                      {errors.title.message}
+                    </p>
                   )}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="goal_amount">
-                    Meta de Arrecadação (R$) <span className="text-destructive">*</span>
+                    Meta de Arrecadação (R$){" "}
+                    <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     id="goal_amount"
@@ -147,13 +198,15 @@ export const FundraiserFormPage = () => {
                       required: "Meta é obrigatória",
                       min: {
                         value: 1,
-                        message: "Meta deve ser maior que R$ 0,00"
+                        message: "Meta deve ser maior que R$ 0,00",
                       },
-                      valueAsNumber: true
+                      valueAsNumber: true,
                     })}
                   />
                   {errors.goal_amount && (
-                    <p className="text-sm text-destructive">{errors.goal_amount.message}</p>
+                    <p className="text-sm text-destructive">
+                      {errors.goal_amount.message}
+                    </p>
                   )}
                 </div>
 
@@ -161,7 +214,7 @@ export const FundraiserFormPage = () => {
                   <Label htmlFor="description">Descrição</Label>
                   <Textarea
                     id="description"
-                    placeholder="Conte a história da sua vaquinha, explique o motivo e como o dinheiro será usado..."
+                    placeholder="Conte a história da sua arrecadação, explique o motivo e como o dinheiro será usado..."
                     className="min-h-32"
                     {...register("description")}
                   />
@@ -170,17 +223,83 @@ export const FundraiserFormPage = () => {
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="cover_image_url">URL da Imagem de Capa</Label>
-                  <Input
-                    id="cover_image_url"
-                    type="url"
-                    placeholder="https://exemplo.com/imagem.jpg"
-                    {...register("cover_image_url")}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Use uma imagem que represente bem sua causa
-                  </p>
+                <div className="space-y-4">
+                  <Label>Imagem de Capa</Label>
+
+                  {/* Image Type Selection */}
+                  <div className="flex gap-4">
+                    <Button
+                      type="button"
+                      variant={imageType === "url" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setImageType("url")}
+                      className="flex items-center gap-2"
+                    >
+                      <Link2 className="h-4 w-4" />
+                      URL da Imagem
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={imageType === "upload" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setImageType("upload")}
+                      className="flex items-center gap-2"
+                    >
+                      <Upload className="h-4 w-4" />
+                      Fazer Upload
+                    </Button>
+                  </div>
+
+                  {imageType === "url" ? (
+                    <div className="space-y-2">
+                      <Input
+                        id="cover_image_url"
+                        type="url"
+                        placeholder="https://exemplo.com/imagem.jpg"
+                        {...register("cover_image_url")}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Cole a URL de uma imagem que represente bem sua causa
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                        <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground mb-2">
+                          Clique para selecionar ou arraste uma imagem
+                        </p>
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          id="image-upload"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              // Here you would typically upload the file and get a URL
+                              toast.success(
+                                "Funcionalidade de upload será implementada em breve"
+                              );
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            document.getElementById("image-upload")?.click()
+                          }
+                        >
+                          Selecionar Arquivo
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Formatos aceitos: JPG, PNG, GIF (máx. 5MB)
+                      </p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -199,7 +318,7 @@ export const FundraiserFormPage = () => {
                       {...register("city")}
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="state">Estado</Label>
                     <Select onValueChange={(value) => setValue("state", value)}>
@@ -229,7 +348,7 @@ export const FundraiserFormPage = () => {
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="is_public">Vaquinha Pública</Label>
+                    <Label htmlFor="is_public">Arrecadação Pública</Label>
                     <p className="text-xs text-muted-foreground">
                       Permite que qualquer pessoa encontre e contribua
                     </p>
@@ -237,7 +356,9 @@ export const FundraiserFormPage = () => {
                   <Switch
                     id="is_public"
                     {...register("is_public")}
-                    onCheckedChange={(checked) => setValue("is_public", checked)}
+                    onCheckedChange={(checked) =>
+                      setValue("is_public", checked)
+                    }
                   />
                 </div>
 
@@ -245,42 +366,121 @@ export const FundraiserFormPage = () => {
                   <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
                     <p className="text-sm text-primary">
                       <Eye className="inline w-4 h-4 mr-1" />
-                      Sua vaquinha será visível para todos e terá um link público
+                      Sua arrecadação será visível para todos e terá um link
+                      público
                     </p>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Preview/Actions */}
+            {/* Terms and Confirmations */}
+            {!isEditing && (
+              <Card className="gradient-card border-0 shadow-soft">
+                <CardHeader>
+                  <CardTitle>Confirmações Obrigatórias</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      id="age_confirmation"
+                      checked={watchAgeConfirmation}
+                      onCheckedChange={(checked) =>
+                        setValue("age_confirmation", !!checked)
+                      }
+                    />
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="age_confirmation"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Confirmação de Idade
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Confirmo que sou maior de 18 anos e tenho capacidade
+                        legal para criar esta arrecadação
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      id="terms_accepted"
+                      checked={watchTermsAccepted}
+                      onCheckedChange={(checked) =>
+                        setValue("terms_accepted", !!checked)
+                      }
+                    />
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor="terms_accepted"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Termos e Condições
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Li e aceito os{" "}
+                        <span className="text-primary cursor-pointer hover:underline">
+                          termos de uso
+                        </span>
+                        , a{" "}
+                        <span className="text-primary cursor-pointer hover:underline">
+                          política de privacidade
+                        </span>{" "}
+                        e estou ciente das{" "}
+                        <span className="text-primary cursor-pointer hover:underline">
+                          taxas aplicáveis
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {(!watchAgeConfirmation || !watchTermsAccepted) && (
+                    <div className="p-3 bg-warning/10 rounded-lg border border-warning/20">
+                      <p className="text-sm text-warning-foreground">
+                        <AlertTriangle className="inline w-4 h-4 mr-1" />É
+                        necessário confirmar todos os itens acima para criar a
+                        arrecadação
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Actions */}
             <Card className="gradient-card border-0 shadow-soft">
               <CardHeader>
                 <CardTitle>Ações</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="w-full gradient-primary text-white shadow-medium hover:shadow-strong transition-smooth"
-                  disabled={isLoading}
+                  disabled={
+                    isLoading ||
+                    (!isEditing &&
+                      (!watchAgeConfirmation || !watchTermsAccepted))
+                  }
                 >
                   {isLoading ? (
                     <>
                       <LoadingSpinner size="sm" className="mr-2" />
-                      {isEditing ? 'Atualizando...' : 'Criando...'}
+                      {isEditing ? "Atualizando..." : "Criando..."}
                     </>
                   ) : (
                     <>
                       <Save className="w-4 h-4 mr-2" />
-                      {isEditing ? 'Atualizar Vaquinha' : 'Criar Vaquinha'}
+                      {isEditing ? "Atualizar Arrecadação" : "Criar Arrecadação"}
                     </>
                   )}
                 </Button>
-                
-                <Button 
+
+                <Button
                   type="button"
                   variant="outline"
                   className="w-full"
-                  onClick={() => navigate('/app/fundraisers')}
+                  onClick={() => navigate("/app/fundraisers")}
                 >
                   Cancelar
                 </Button>

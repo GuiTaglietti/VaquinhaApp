@@ -1,6 +1,6 @@
 import uuid
 import os, hashlib, secrets
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timedelta
 
 from flask import Blueprint, jsonify, request, g, current_app
@@ -11,7 +11,8 @@ from ..extensions import db
 from ..decorators import tenant_required
 from ..models import (
     User, Fundraiser, Contribution, PaymentStatus,
-    BankAccount, Withdrawal, WithdrawalStatus
+    BankAccount, Withdrawal, WithdrawalStatus,
+    Invoice
 )
 from ..email_sender import (
     send_email_html_mailgun,
@@ -25,6 +26,7 @@ APP_BACKEND_URL = os.getenv("APP_BACKEND_URL", "http://localhost:5055")
 APP_FRONTEND_URL = os.getenv("APP_FRONTEND_URL", "http://localhost:5199")
 PAYOUT_TOKEN_EXP_HOURS = int(os.getenv("PAYOUT_TOKEN_EXP_HOURS", "48"))
 PAYOUT_TOKEN_MAX_VIEWS = int(os.getenv("PAYOUT_TOKEN_MAX_VIEWS", "5"))
+INVOICE_TAX_RATE_PERCENT = Decimal(os.getenv("INVOICE_TAX_RATE_PERCENT", "5"))
 
 def _new_payout_token():
     token = secrets.token_urlsafe(32)
@@ -89,6 +91,30 @@ def _sum_withdrawals_completed(fundraiser_id) -> Decimal:
 def _available_balance(fundraiser_id) -> Decimal:
     return _sum_paid_contributions(fundraiser_id) - _sum_withdrawals_non_failed(fundraiser_id)
 
+def _quantize_money(v: Decimal) -> Decimal:
+    return v.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+def _ensure_invoice_for_withdrawal(w: Withdrawal) -> Invoice:
+    inv: Invoice | None = db.session.query(Invoice).filter_by(withdrawal_id=w.id).first()
+    if inv:
+        return inv
+
+    amount = _dec(w.amount)
+    tax = _quantize_money((amount * INVOICE_TAX_RATE_PERCENT) / Decimal("100")) if INVOICE_TAX_RATE_PERCENT > 0 else Decimal("0.00")
+
+    inv = Invoice(
+        withdrawal_id=w.id,
+        fundraiser_id=w.fundraiser_id,
+        amount=_quantize_money(amount),
+        tax_amount=_quantize_money(tax),
+        issued_at=datetime.utcnow(),
+        pdf_url=None,  # preencha quando você gerar o PDF
+    )
+    db.session.add(inv)
+    db.session.commit()
+    return inv
+
+
 @withdrawals_bp.route("", methods=["POST"])
 @jwt_required()
 @tenant_required
@@ -111,7 +137,7 @@ def request_withdrawal():
 
     f: Fundraiser = Fundraiser.query.get(fundraiser_id)
     if not f or str(f.owner_user_id) != str(g.tenant_id):
-        return jsonify({"error": "not_found", "message": "Vaquinha não encontrada"}), 404
+        return jsonify({"error": "not_found", "message": "Arrecadação não encontrada"}), 404
 
     ba: BankAccount = BankAccount.query.get(bank_account_id)
     if not ba or str(ba.owner_user_id) != str(g.tenant_id):
@@ -167,7 +193,7 @@ def request_withdrawal():
             admin_html = build_withdrawal_email_html_admin(
                 requester_name=requester.name if requester else "Usuário",
                 requester_email=requester.email if requester else "",
-                fundraiser_title=f.title if f else "(Vaquinha)",
+                fundraiser_title=f.title if f else "(Arrecadação)",
                 amount=w.amount,
                 bank_info=bank_info,
                 requested_at=w.requested_at,
@@ -180,7 +206,7 @@ def request_withdrawal():
         if os.getenv("SEND_WITHDRAWAL_CONFIRM_TO_USER", "true").lower() in ("1", "true", "yes", "y"):
             user_html = build_withdrawal_email_html_user(
                 requester_name=requester.name if requester else "Usuário",
-                fundraiser_title=f.title if f else "(Vaquinha)",
+                fundraiser_title=f.title if f else "(Arrecadação)",
                 amount=w.amount,
                 bank_info=bank_info,
                 requested_at=w.requested_at,
@@ -200,10 +226,68 @@ def request_withdrawal():
 @jwt_required()
 @tenant_required
 def list_withdrawals():
-    """Lista saques do usuário atual (todas as vaquinhas dele)."""
     items = db.session.query(Withdrawal)\
         .join(Fundraiser, Fundraiser.id == Withdrawal.fundraiser_id)\
         .filter(Fundraiser.owner_user_id == g.tenant_id)\
         .order_by(Withdrawal.requested_at.desc())\
         .all()
     return jsonify([_serialize_withdrawal(w) for w in items]), 200
+
+@withdrawals_bp.route("/<uuid:withdrawal_id>/status", methods=["PATCH"])
+@jwt_required()
+@tenant_required
+def update_withdrawal_status(withdrawal_id):
+    """
+    Atualiza o status de um saque do usuário atual.
+    Dispara criação de Invoice quando status muda para COMPLETED.
+    Body esperado: {"status": "PENDING|PROCESSING|COMPLETED|FAILED", "processed_at": "ISO opcional"}
+    """
+    data = request.get_json() or {}
+    new_status_str = (data.get("status") or "").strip().upper()
+    if new_status_str not in {"PENDING", "PROCESSING", "COMPLETED", "FAILED"}:
+        return jsonify({"error": "invalid_status"}), 400
+
+    # Saque precisa pertencer a uma Arrecadação do tenant atual
+    w: Withdrawal | None = (
+        db.session.query(Withdrawal)
+        .join(Fundraiser, Fundraiser.id == Withdrawal.fundraiser_id)
+        .filter(
+            Withdrawal.id == withdrawal_id,
+            Fundraiser.owner_user_id == g.tenant_id,
+        )
+        .first()
+    )
+    if not w:
+        return jsonify({"error": "not_found", "message": "Saque não encontrado"}), 404
+
+    try:
+        new_status = WithdrawalStatus[new_status_str]
+    except KeyError:
+        return jsonify({"error": "invalid_status"}), 400
+
+    w.status = new_status
+
+    # processed_at informado manualmente (opcional)
+    processed_at_str = (data.get("processed_at") or "").strip()
+    if processed_at_str:
+        try:
+            w.processed_at = datetime.fromisoformat(processed_at_str)
+        except Exception:
+            return jsonify({"error": "invalid_processed_at", "message": "processed_at deve ser ISO-8601"}), 400
+    else:
+        # Se marcou COMPLETED e ainda não tem processed_at, define agora
+        if new_status == WithdrawalStatus.COMPLETED and not w.processed_at:
+            w.processed_at = datetime.utcnow()
+
+    db.session.add(w)
+    db.session.commit()
+
+    # Se COMPLETED, garantir Invoice criada
+    if w.status == WithdrawalStatus.COMPLETED:
+        try:
+            _ensure_invoice_for_withdrawal(w)
+        except Exception:
+            current_app.logger.exception("Falha ao criar Invoice para o saque %s", w.id)
+
+    return jsonify(_serialize_withdrawal(w)), 200
+

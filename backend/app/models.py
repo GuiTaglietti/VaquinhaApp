@@ -168,3 +168,66 @@ class Withdrawal(db.Model):
 
     def __repr__(self):
         return f"<Withdrawal {self.id} {self.amount} {self.status}>"
+    
+class FundraiserReport(db.Model):
+    __tablename__ = "fundraiser_reports"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    fundraiser_id = Column(UUID(as_uuid=True), ForeignKey("fundraisers.id"), nullable=False, index=True)
+    reporter_email = Column(String(120), nullable=True)  # pode ser anônimo (sem auth)
+    reason = Column(String(64), nullable=False)          # ex: "fraud", "spam", "inappropriate"
+    message = Column(String(1024), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    fundraiser = relationship("Fundraiser")
+
+    def __repr__(self) -> str:
+        return f"<FundraiserReport {self.id} fundraiser={self.fundraiser_id}>"
+
+class Invoice(db.Model):
+    __tablename__ = "invoices"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    withdrawal_id = Column(UUID(as_uuid=True), ForeignKey("withdrawals.id"), nullable=False, index=True)
+
+    amount = Column(Numeric(scale=2), nullable=False)
+    tax_amount = Column(Numeric(scale=2), nullable=False, default=0)
+    issued_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    pdf_url = Column(String(1024), nullable=True)
+
+    fundraiser_id = Column(UUID(as_uuid=True), ForeignKey("fundraisers.id"), nullable=False, index=True)
+
+    withdrawal = relationship("Withdrawal")
+    fundraiser = relationship("Fundraiser")
+
+    def to_dict(self):
+        return {
+            "id": str(self.id),
+            "amount": float(self.amount),
+            "tax_amount": float(self.tax_amount),
+            "issued_at": self.issued_at.isoformat(),
+            "pdf_url": self.pdf_url,
+            "fundraiser": {
+                "id": str(self.fundraiser_id),
+                "title": self.fundraiser.title if self.fundraiser else None,
+            },
+        }
+
+    def __repr__(self) -> str:
+        return f"<Invoice {self.id} withdrawal={self.withdrawal_id}>"
+
+class PasswordReset(db.Model):
+    __tablename__ = "password_resets"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    token = Column(String(128), unique=True, nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User")
+
+    def __repr__(self) -> str:
+        return f"<PasswordReset {self.id} user={self.user_id} used={self.used}>"
+

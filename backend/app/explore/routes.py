@@ -23,8 +23,6 @@ def _serialize_public_item(f: Fundraiser):
     }
 
 @explore_bp.route("/explore/fundraisers", methods=["GET"])
-@jwt_required()
-@tenant_required
 def list_public_fundraisers():
     page = max(int(request.args.get("page", 1)), 1)
     limit = min(max(int(request.args.get("limit", 12)), 1), 100)
@@ -54,8 +52,6 @@ def list_public_fundraisers():
     }), 200
 
 @explore_bp.route("/explore/fundraisers/<slug>", methods=["GET"])
-@jwt_required()
-@tenant_required
 def get_public_by_slug(slug):
     f = Fundraiser.query.filter_by(public_slug=slug, is_public=True).first()
     if not f:

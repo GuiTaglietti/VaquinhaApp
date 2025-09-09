@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -15,6 +15,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { MoneyProgressBar } from "@/components/ui/money-progress-bar";
 import { ArrowLeft, Heart, MapPin, Share2 } from "lucide-react";
+import { ReportModal } from "@/components/ui/report-modal";
+import { PixPaymentModal } from "@/components/ui/pix-payment-modal";
 import { exploreService } from "@/services/explore";
 import { contributionsService } from "@/services/contributions";
 import { PublicFundraiserData, CreateContributionRequest } from "@/types";
@@ -23,6 +25,11 @@ import { toast } from "react-hot-toast";
 export const ExploreFundraiserPage = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const baseExplorePath = location.pathname.startsWith("/app")
+    ? "/app/explore"
+    : "/explore";
+
   const [fundraiser, setFundraiser] = useState<PublicFundraiserData | null>(
     null
   );
@@ -32,10 +39,15 @@ export const ExploreFundraiserPage = () => {
   const [message, setMessage] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
 
+  // PIX / QR Code
+  const [showPixModal, setShowPixModal] = useState(false);
+  const [contributionAmount, setContributionAmount] = useState(0);
+
   useEffect(() => {
     if (slug) {
       loadFundraiser();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   const loadFundraiser = async () => {
@@ -46,8 +58,8 @@ export const ExploreFundraiserPage = () => {
       const data = await exploreService.getFundraiserBySlug(slug);
       setFundraiser(data);
     } catch (error) {
-      toast.error("Erro ao carregar vaquinha");
-      navigate("/app/explore");
+      toast.error("Erro ao carregar arrecadação");
+      navigate(baseExplorePath);
     } finally {
       setIsLoading(false);
     }
@@ -59,22 +71,28 @@ export const ExploreFundraiserPage = () => {
     if (!fundraiser || !amount) return;
 
     const numAmount = parseFloat(amount);
-    if (numAmount <= 0) {
-      toast.error("O valor deve ser maior que zero");
+    if (Number.isNaN(numAmount) || numAmount < 20) {
+      toast.error("O valor mínimo para contribuição é R$ 20,00");
       return;
     }
 
+    // Abre modal PIX para gerar QR Code e prosseguir
+    setContributionAmount(numAmount);
+    setShowPixModal(true);
+  };
+
+  const handlePixPaymentSuccess = async () => {
     try {
       setIsContributing(true);
 
       const contributionData: CreateContributionRequest = {
-        amount: numAmount,
+        amount: contributionAmount,
         message: message.trim() || undefined,
         is_anonymous: isAnonymous,
       };
 
-      const result = await contributionsService.createContribution(
-        fundraiser.id,
+      await contributionsService.createContribution(
+        fundraiser!.id,
         contributionData
       );
 
@@ -85,7 +103,7 @@ export const ExploreFundraiserPage = () => {
       setMessage("");
       setIsAnonymous(false);
 
-      // Reload fundraiser to get updated amount
+      // Recarrega valores
       await loadFundraiser();
     } catch (error) {
       toast.error("Erro ao processar contribuição");
@@ -101,21 +119,19 @@ export const ExploreFundraiserPage = () => {
       const url = `${window.location.origin}/p/${fundraiser.public_slug}`;
       await navigator.clipboard.writeText(url);
       toast.success("Link copiado para a área de transferência!");
-    } catch (error) {
+    } catch {
       toast.error("Erro ao copiar link");
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("pt-BR", {
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
-    }).format(amount);
-  };
+    }).format(value);
 
-  const getProgressPercentage = (current: number, goal: number) => {
-    return Math.min((current / goal) * 100, 100);
-  };
+  const getProgressPercentage = (current: number, goal: number) =>
+    Math.min((current / goal) * 100, 100);
 
   if (isLoading) {
     return (
@@ -128,11 +144,11 @@ export const ExploreFundraiserPage = () => {
   if (!fundraiser) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-2xl font-bold mb-2">Vaquinha não encontrada</h2>
+        <h2 className="text-2xl font-bold mb-2">Arrecadação não encontrada</h2>
         <p className="text-muted-foreground mb-4">
-          Esta vaquinha não existe ou foi removida.
+          Esta arrecadação não existe ou foi removida.
         </p>
-        <Button onClick={() => navigate("/app/explore")}>
+        <Button onClick={() => navigate(baseExplorePath)}>
           Voltar para Explorar
         </Button>
       </div>
@@ -141,24 +157,31 @@ export const ExploreFundraiserPage = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header de ações */}
       <div className="flex items-center gap-4">
         <Button
           variant="outline"
           size="sm"
-          onClick={() => navigate("/app/explore")}
+          onClick={() => navigate(baseExplorePath)}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar
         </Button>
 
-        <Button variant="outline" size="sm" onClick={handleShare}>
-          <Share2 className="h-4 w-4 mr-2" />
-          Compartilhar
-        </Button>
+        <div className="flex gap-2">
+          <ReportModal
+            fundraiserId={fundraiser.id}
+            fundraiserTitle={fundraiser.title}
+          />
+          <Button variant="outline" size="sm" onClick={handleShare}>
+            <Share2 className="h-4 w-4 mr-2" />
+            Compartilhar
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Informações da Vaquinha */}
+        {/* Informações da arrecadação */}
         <div className="lg:col-span-2 space-y-6">
           <Card>
             {fundraiser.cover_image_url && (
@@ -219,7 +242,7 @@ export const ExploreFundraiserPage = () => {
 
               {fundraiser.description && (
                 <div>
-                  <h3 className="font-semibold mb-3">Sobre esta vaquinha</h3>
+                  <h3 className="font-semibold mb-3">Sobre esta arrecadação</h3>
                   <p className="text-muted-foreground whitespace-pre-wrap">
                     {fundraiser.description}
                   </p>
@@ -229,7 +252,7 @@ export const ExploreFundraiserPage = () => {
           </Card>
         </div>
 
-        {/* Formulário de Contribuição */}
+        {/* Formulário de Contribuição (não sticky) */}
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -254,7 +277,7 @@ export const ExploreFundraiserPage = () => {
                       id="amount"
                       type="number"
                       step="0.01"
-                      min="1"
+                      min="20"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       className="pl-10"
@@ -307,14 +330,14 @@ export const ExploreFundraiserPage = () => {
             </CardContent>
           </Card>
 
-          {/* Valores Sugeridos */}
+          {/* Valores Sugeridos (alinhados ao mínimo R$ 20) */}
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">Valores Sugeridos</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-2">
-                {[10, 25, 50, 100].map((value) => (
+                {[20, 50, 100, 200].map((value) => (
                   <Button
                     key={value}
                     variant="outline"
@@ -329,6 +352,19 @@ export const ExploreFundraiserPage = () => {
           </Card>
         </div>
       </div>
+
+      {/* PIX Payment Modal */}
+      <PixPaymentModal
+        isOpen={showPixModal}
+        onClose={() => setShowPixModal(false)}
+        amount={contributionAmount}
+        fundraiserTitle={fundraiser?.title || ""}
+        onSuccess={handlePixPaymentSuccess}
+        onExpire={() => {
+          toast.error("Pagamento PIX expirou");
+          setShowPixModal(false);
+        }}
+      />
     </div>
   );
 };

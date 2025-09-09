@@ -1,8 +1,3 @@
-# app/fundraisers/routes.py
-"""Endpoints relacionados às vaquinhas (fundraisers).
-
-Fornece CRUD completo, além de rotas para gerar links públicos e de auditoria.
-"""
 import uuid
 from flask import Blueprint, request, jsonify, g, abort
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -44,13 +39,13 @@ def create_fundraiser():
     if not is_profile_complete(u):
         return jsonify({
             "error": "profile_incomplete",
-            "message": "Complete seu perfil (documentos, telefone e endereço) para criar uma vaquinha."
+            "message": "Complete seu perfil (documentos, telefone e endereço) para criar uma arrecadação."
         }), 403
     
     if not user_has_bank_account(u):
         return jsonify({
             "error": "no_bank_account",
-            "message": "Cadastre ao menos uma conta bancária para criar uma vaquinha."
+            "message": "Cadastre ao menos uma conta bancária para criar uma arrecadação."
         }), 403
 
     f = Fundraiser(
@@ -78,7 +73,6 @@ def create_fundraiser():
 @tenant_required
 @jwt_required()
 def list_fundraisers():
-    """Lista vaquinhas do usuário autenticado (owner = escopo)."""
     user_id = g.user_id
     items = Fundraiser.query.filter_by(owner_user_id=user_id).all()
     return jsonify([
@@ -105,7 +99,7 @@ def get_fundraiser(fundraiser_id):
     """Retorna detalhes se o usuário for dono (escopo) ou se for pública."""
     f = Fundraiser.query.get(fundraiser_id)
     if not f or str(f.owner_user_id) != str(g.tenant_id):
-        return jsonify({"error": "not_found", "message": "Vaquinha não encontrada"}), 404
+        return jsonify({"error": "not_found", "message": "Arrecadação não encontrada"}), 404
 
     current_user_id = get_jwt_identity()
     is_owner = current_user_id and (str(uuid.UUID(str(current_user_id))) == str(f.owner_user_id))
@@ -146,7 +140,7 @@ def update_fundraiser(fundraiser_id):
         f.public_slug = generate_slug(f.title)
 
     db.session.commit()
-    return jsonify({"message": "Vaquinha atualizada"}), 200
+    return jsonify({"message": "Arrecadação atualizada"}), 200
 
 
 @fundraisers_bp.route("/<fundraiser_id>", methods=["DELETE"])
@@ -159,7 +153,7 @@ def delete_fundraiser(fundraiser_id):
 
     db.session.delete(f)
     db.session.commit()
-    return jsonify({"message": "Vaquinha removida"}), 200
+    return jsonify({"message": "Arrecadação removida"}), 200
 
 
 @fundraisers_bp.route("/<fundraiser_id>/share/public", methods=["POST"])
@@ -197,7 +191,7 @@ def share_audit(fundraiser_id):
 def fundraiser_stats(fundraiser_id):
     f = Fundraiser.query.get(fundraiser_id)
     if not f or str(f.owner_user_id) != str(g.tenant_id):
-        return jsonify({"error": "not_found", "message": "Vaquinha não encontrada"}), 404
+        return jsonify({"error": "not_found", "message": "Arrecadação não encontrada"}), 404
 
     # Contribuições (pagas, p/ saldo e indicadores)
     contribs = Contribution.query.filter(

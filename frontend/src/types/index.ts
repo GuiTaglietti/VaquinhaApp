@@ -152,7 +152,52 @@ export interface DashboardStats {
   total_contributions: number;
 }
 
-export * from './withdrawals';
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  password: string;
+}
+
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
+export interface DeleteAccountRequest {
+  password: string;
+  bank_account_id: string;
+  confirmation: string;
+}
+
+export interface ReportRequest {
+  fundraiser_id: string;
+  reason:
+    | "FRAUD"
+    | "INAPPROPRIATE_CONTENT"
+    | "FALSE_INFORMATION"
+    | "SPAM"
+    | "OTHER";
+  description: string;
+}
+
+export interface InvoiceData {
+  id: string;
+  withdrawal_id: string;
+  amount: number;
+  tax_amount: number;
+  issued_at: string;
+  pdf_url?: string;
+  fundraiser: {
+    id: string;
+    title: string;
+  };
+}
+
+export * from "./withdrawals";
+export * from './fundraiser-status';
 
 export const BRAZILIAN_STATES = [
   { value: "AC", label: "Acre" },

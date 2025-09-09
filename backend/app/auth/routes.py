@@ -4,6 +4,7 @@ import os
 import secrets
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
+from werkzeug.exceptions import BadRequest, NotFound, Forbidden
 
 from flask import Blueprint, request, jsonify, current_app, make_response, redirect
 from flask_jwt_extended import (
@@ -14,13 +15,14 @@ from flask_jwt_extended import (
 )
 
 from ..extensions import db
-from ..models import User, EmailVerification
+from ..models import User, EmailVerification, PasswordReset
 from ..utils import hash_password, verify_password
 from ..email_sender import send_email_html_mailgun, build_verification_email_html
 
 auth_bp = Blueprint("auth", __name__)
 
 CONFIRM_EXP_HOURS = int(os.getenv("CONFIRM_EXP_HOURS", "24"))
+RESET_EXP_HOURS = int(os.getenv("RESET_EXP_HOURS", "2"))
 APP_BACKEND_URL = os.getenv("APP_BACKEND_URL", "http://localhost:5055")
 APP_FRONTEND_URL = os.getenv("APP_FRONTEND_URL", "http://localhost:5199")
 
@@ -67,7 +69,7 @@ def register():
     db.session.commit()
 
     confirm_url = _confirm_url(token)
-    subject = "Confirme seu e-mail — Vaquinhas Solidárias"
+    subject = "Confirme seu e-mail — Velório Solidário"
     html = build_verification_email_html(name, confirm_url)
 
     try:
@@ -142,7 +144,7 @@ def _simple_html(msg: str, ok: bool = True):
                  background:hsl(214 19% 94%);color:hsl(0 0% 11%);">
       <div style="max-width:560px;margin:56px auto;background:white;padding:28px;border-radius:12px;
                   border:1px solid hsl(214 19% 85%);box-shadow:0 8px 30px hsl(200 14% 31% / .15);">
-        <h2 style="margin:0 0 12px 0;color:{color}">Vaquinhas Solidárias</h2>
+        <h2 style="margin:0 0 12px 0;color:{color}">Velório Solidário</h2>
         <p style="font-size:16px;line-height:1.6;margin:0;">{msg}</p>
       </div>
     </body></html>
@@ -175,7 +177,7 @@ def resend_confirmation():
         return jsonify({"error": "expired", "message": "Link expirado. Inicie o cadastro novamente."}), 400
 
     confirm_url = _confirm_url(ev.token)
-    subject = "Confirme seu e-mail — Vaquinhas Solidárias"
+    subject = "Confirme seu e-mail — Velório Solidário"
     html = build_verification_email_html(ev.name or name or "Usuário", confirm_url)
 
     try:
@@ -233,3 +235,71 @@ def me():
     if hasattr(User, "tenant_id"):
         payload["tenant_id"] = str(user.tenant_id)
     return jsonify(payload), 200
+
+def _reset_url(token: str) -> str:
+    return f"{APP_FRONTEND_URL}/auth/reset?{urlencode({'token': token})}"
+
+
+@auth_bp.route("/forgot-password", methods=["POST"])
+def forgot_password():
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip().lower()
+    if not email:
+        return jsonify({"error": "invalid_request", "message": "E-mail é obrigatório"}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if user:
+        PasswordReset.query.filter(
+            PasswordReset.user_id == user.id,
+            PasswordReset.used.is_(False)
+        ).delete(synchronize_session=False)
+        db.session.commit()
+
+        token = secrets.token_urlsafe(32)
+        pr = PasswordReset(
+            user_id=user.id,
+            token=token,
+            expires_at=datetime.utcnow() + timedelta(hours=RESET_EXP_HOURS),
+            used=False,
+        )
+        db.session.add(pr)
+        db.session.commit()
+
+        try:
+            url = _reset_url(token)
+            html = f"""
+                <p>Olá, {user.name}!</p>
+                <p>Para redefinir sua senha, clique no link abaixo (válido por {RESET_EXP_HOURS} horas):</p>
+                <p><a href="{url}">{url}</a></p>
+                <p>Se você não solicitou, ignore este e-mail.</p>
+            """
+            send_email_html_mailgun(user.email, "Redefinição de senha — Velório Solidário", html)
+        except Exception:
+            current_app.logger.exception("Falha ao enviar e-mail de reset de senha")
+
+    return jsonify({"status": "ok"}), 200
+
+
+@auth_bp.route("/change-password", methods=["POST"])
+def reset_password():
+    data = request.get_json() or {}
+    token = (data.get("token") or "").strip()
+    new_password = (data.get("new_password") or "").strip()
+
+    if not token or not new_password:
+        return jsonify({"error": "invalid_request", "message": "token e new_password são obrigatórios"}), 400
+
+    pr = PasswordReset.query.filter_by(token=token, used=False).first()
+    if not pr:
+        return jsonify({"error": "invalid_token", "message": "Token inválido"}), 404
+
+    if pr.expires_at < datetime.utcnow():
+        return jsonify({"error": "expired", "message": "Token expirado"}), 403
+
+    user = pr.user
+    user.password_hash = hash_password(new_password)
+    pr.used = True
+    db.session.commit()
+
+    return jsonify({"status": "ok"}), 200
+

@@ -1,5 +1,3 @@
-"""Endpoints públicos para visualização de vaquinhas sem autenticação."""
-
 import os
 import hashlib
 
@@ -82,7 +80,7 @@ def _simple_html(msg: str, ok: bool = True):
                  background:hsl(214 19% 94%);color:hsl(0 0% 11%);">
       <div style="max-width:720px;margin:56px auto;background:white;padding:28px;border-radius:12px;
                   border:1px solid hsl(214 19% 85%);box-shadow:0 8px 30px hsl(200 14% 31% / .15);">
-        <h2 style="margin:0 0 12px 0;color:{color}">Vaquinhas Solidárias</h2>
+        <h2 style="margin:0 0 12px 0;color:{color}">Velório Solidário</h2>
         <p style="font-size:16px;line-height:1.6;margin:0;">{msg}</p>
       </div>
     </body></html>
@@ -150,7 +148,7 @@ def public_withdrawal_view(token: str):
     <div style="padding:24px">
       <div style="border:1px solid hsl(214 19% 85%);border-radius:12px;padding:16px;background:hsl(214 19% 90% / .35);margin-bottom:16px">
         <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-          <span style="color:hsl(200 14% 31%)">Vaquinha</span>
+          <span style="color:hsl(200 14% 31%)">Arrecadação</span>
           <strong>{(f.title if f else '—')}</strong>
         </div>
         <div style="display:flex;justify-content:space-between;margin-bottom:8px">

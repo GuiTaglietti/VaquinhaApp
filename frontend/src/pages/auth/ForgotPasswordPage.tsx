@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { Eye, EyeOff, Heart } from "lucide-react";
+import { ArrowLeft, Heart, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,30 +13,77 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { useAuthStore } from "@/store/auth";
-import { LoginRequest } from "@/types";
+import { authService } from "@/services/auth";
+import { ForgotPasswordRequest } from "@/types";
+import { toast } from "react-hot-toast";
 import heroImage from "@/assets/hero-image.jpeg";
 
-export const LoginPage = () => {
-  const [showPassword, setShowPassword] = useState(false);
-  const { login, isLoading } = useAuthStore();
-  const navigate = useNavigate();
+export const ForgotPasswordPage = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginRequest>();
+  } = useForm<ForgotPasswordRequest>();
 
-  const onSubmit = async (data: LoginRequest) => {
+  const onSubmit = async (data: ForgotPasswordRequest) => {
     try {
-      await login(data);
-      navigate("/app");
+      setIsLoading(true);
+      await authService.forgotPassword(data);
+      setEmailSent(true);
+      toast.success("E-mail de recuperação enviado!");
     } catch (error) {
-      // Error is handled by the store and shown via toast
-      console.error("Login failed:", error);
+      console.error("Forgot password failed:", error);
+      toast.error("Erro ao enviar e-mail. Verifique o endereço informado.");
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  if (emailSent) {
+    return (
+      <div className="min-h-screen flex">
+        {/* Left side - Hero */}
+        <div className="hidden lg:flex lg:flex-1 relative">
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${heroImage})` }}
+          />
+          <div className="absolute inset-0 gradient-hero opacity-90" />
+        </div>
+
+        {/* Right side - Success Message */}
+        <div className="flex-1 flex flex-col justify-center px-4 sm:px-6 lg:px-8 bg-background">
+          <div className="mx-auto w-full max-w-sm">
+            <Card className="gradient-card border-0 shadow-medium">
+              <CardHeader className="text-center space-y-4">
+                <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                  <Mail className="h-6 w-6 text-primary" />
+                </div>
+                <CardTitle className="text-2xl font-bold">
+                  E-mail Enviado!
+                </CardTitle>
+                <CardDescription className="text-center">
+                  Enviamos um link de recuperação para seu e-mail. Verifique sua
+                  caixa de entrada e spam.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button asChild className="w-full" variant="outline">
+                  <Link to="/auth/login">
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Voltar ao Login
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex">
@@ -49,7 +96,7 @@ export const LoginPage = () => {
         <div className="absolute inset-0 gradient-hero opacity-90" />
       </div>
 
-      {/* Right side - Login Form */}
+      {/* Right side - Forgot Password Form */}
       <div className="flex-1 flex flex-col justify-center px-4 sm:px-6 lg:px-8 bg-background">
         <div className="mx-auto w-full max-w-sm">
           <div className="text-center mb-8 lg:hidden">
@@ -64,10 +111,10 @@ export const LoginPage = () => {
           <Card className="gradient-card border-0 shadow-medium">
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl font-bold text-center">
-                Entrar na conta
+                Recuperar Senha
               </CardTitle>
               <CardDescription className="text-center">
-                Digite suas credenciais para acessar sua conta
+                Digite seu e-mail para receber o link de recuperação
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -93,42 +140,6 @@ export const LoginPage = () => {
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password">Senha</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Sua senha"
-                      {...register("password", {
-                        required: "Senha é obrigatória",
-                        minLength: {
-                          value: 6,
-                          message: "Senha deve ter no mínimo 6 caracteres",
-                        },
-                      })}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <Eye className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </Button>
-                  </div>
-                  {errors.password && (
-                    <p className="text-sm text-destructive">
-                      {errors.password.message}
-                    </p>
-                  )}
-                </div>
-
                 <Button
                   type="submit"
                   className="w-full gradient-primary text-white shadow-medium hover:shadow-strong transition-smooth"
@@ -137,32 +148,25 @@ export const LoginPage = () => {
                   {isLoading ? (
                     <>
                       <LoadingSpinner size="sm" className="mr-2" />
-                      Entrando...
+                      Enviando...
                     </>
                   ) : (
-                    "Entrar"
+                    <>
+                      <Mail className="h-4 w-4 mr-2" />
+                      Enviar Link de Recuperação
+                    </>
                   )}
                 </Button>
               </form>
 
-              <div className="text-center text-sm space-y-2">
+              <div className="text-center">
                 <Link
-                  to="/auth/forgot-password"
-                  className="text-primary font-medium hover:text-primary-light transition-fast block"
+                  to="/auth/login"
+                  className="text-sm text-primary font-medium hover:text-primary-light transition-fast inline-flex items-center"
                 >
-                  Esqueci minha senha
+                  <ArrowLeft className="h-4 w-4 mr-1" />
+                  Voltar ao Login
                 </Link>
-                <div>
-                  <span className="text-muted-foreground">
-                    Não tem uma conta?{" "}
-                  </span>
-                  <Link
-                    to="/auth/register"
-                    className="text-primary font-medium hover:text-primary-light transition-fast"
-                  >
-                    Registre-se
-                  </Link>
-                </div>
               </div>
             </CardContent>
           </Card>

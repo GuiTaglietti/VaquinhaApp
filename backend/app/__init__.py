@@ -22,6 +22,9 @@ from .public.routes import public_bp
 from .profile.routes import profile_bp
 from .explore.routes import explore_bp  
 from .withdrawals.routes import withdrawals_bp
+from .reports.routes import reports_bp
+from .invoices.routes import invoices_bp
+
 
 def create_app() -> Flask:
     """Cria e configura uma instância da aplicação Flask."""
@@ -64,6 +67,8 @@ def create_app() -> Flask:
     app.register_blueprint(profile_bp, url_prefix="/api")
     app.register_blueprint(explore_bp, url_prefix="/api")
     app.register_blueprint(withdrawals_bp, url_prefix="/api/withdrawals")
+    app.register_blueprint(reports_bp, url_prefix="/api")
+    app.register_blueprint(invoices_bp, url_prefix="/api")
 
     # Healthcheck
     @app.get("/api/healthz")

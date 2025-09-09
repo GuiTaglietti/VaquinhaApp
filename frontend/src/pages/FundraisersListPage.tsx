@@ -105,7 +105,7 @@ export const FundraisersListPage = () => {
     try {
       await fundraisersService.delete(id);
       setFundraisers((prev) => prev.filter((f) => f.id !== id));
-      toast.success("Vaquinha excluída com sucesso!");
+      toast.success("Arrecadação excluída com sucesso!");
     } catch (error) {
       console.error("Error deleting fundraiser:", error);
     }
@@ -115,10 +115,10 @@ export const FundraisersListPage = () => {
     try {
       if (!fundraiser.is_public) {
         await fundraisersService.makePublic(fundraiser.id);
-        toast.success("Vaquinha tornada pública com sucesso!");
+        toast.success("Arrecadação tornada pública com sucesso!");
       } else {
         await fundraisersService.update(fundraiser.id, { is_public: false });
-        toast.success("Vaquinha tornada privada com sucesso!");
+        toast.success("Arrecadação tornada privada com sucesso!");
       }
       fetchFundraisers();
     } catch (error) {
@@ -189,23 +189,23 @@ export const FundraisersListPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-3xl font-bold">Minhas Vaquinhas</h1>
+        <h1 className="text-3xl font-bold">Minhas arrecadações</h1>
         <Button
           onClick={() => navigate("/app/fundraisers/new")}
           className="gradient-primary text-white shadow-medium hover:shadow-strong transition-smooth"
         >
           <Plus className="w-4 h-4 mr-2" />
-          Nova Vaquinha
+          Nova Arrecadação
         </Button>
       </div>
 
       {fundraisers.length === 0 ? (
         <EmptyState
           icon={Plus}
-          title="Nenhuma vaquinha encontrada"
-          description="Você ainda não criou nenhuma vaquinha. Crie sua primeira campanha agora!"
+          title="Nenhuma arrecadação encontrada"
+          description="Você ainda não criou nenhuma arrecadação. Crie sua primeira campanha agora!"
           action={{
-            label: "Criar vaquinha",
+            label: "Criar arrecadação",
             onClick: () => navigate("/app/fundraisers/new"),
           }}
         />
@@ -278,7 +278,7 @@ export const FundraisersListPage = () => {
                           }
                         >
                           <Eye className="mr-2 h-4 w-4" />
-                          Controlar vaquinha
+                          Controlar arrecadação
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() =>
@@ -329,7 +329,7 @@ export const FundraisersListPage = () => {
                                 Confirmar exclusão
                               </AlertDialogTitle>
                               <AlertDialogDescription>
-                                Esta ação não pode ser desfeita. A vaquinha será
+                                Esta ação não pode ser desfeita. A arrecadação será
                                 permanentemente excluída.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
@@ -432,7 +432,7 @@ export const FundraisersListPage = () => {
                             }
                           >
                             <Eye className="mr-2 h-4 w-4" />
-                            Controlar vaquinha
+                            Controlar arrecadação
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() =>
@@ -485,7 +485,7 @@ export const FundraisersListPage = () => {
                                   Confirmar exclusão
                                 </AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Esta ação não pode ser desfeita. A vaquinha
+                                  Esta ação não pode ser desfeita. A arrecadação
                                   será permanentemente excluída.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
@@ -511,8 +511,8 @@ export const FundraisersListPage = () => {
           {filteredFundraisers.length === 0 && (
             <EmptyState
               icon={Search}
-              title="Nenhuma vaquinha encontrada"
-              description="Não encontramos vaquinhas com os filtros aplicados. Tente ajustar sua busca."
+              title="Nenhuma arrecadação encontrada"
+              description="Não encontramos arrecadações com os filtros aplicados. Tente ajustar sua busca."
             />
           )}
         </>

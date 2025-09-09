@@ -60,8 +60,8 @@ export const ExplorePage = () => {
       setTotal(data.total);
     } catch (error) {
       // Evita quebrar a UI; a Toast já avisa
-      console.error("Erro ao carregar vaquinhas:", error);
-      toast.error("Erro ao carregar vaquinhas");
+      console.error("Erro ao carregar arrecadações:", error);
+      toast.error("Erro ao carregar arrecadações");
       setFundraisers([]);
       setTotalPages(1);
       setTotal(0);
@@ -121,7 +121,7 @@ export const ExplorePage = () => {
           <Globe className="h-5 w-5 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Explorar Vaquinhas</h1>
+          <h1 className="text-2xl font-bold">Explorar arrecadações</h1>
           <p className="text-muted-foreground">
             Descubra e contribua com causas importantes
           </p>
@@ -136,7 +136,7 @@ export const ExplorePage = () => {
             Filtros
           </CardTitle>
           <CardDescription>
-            Encontre vaquinhas por categoria, localização e muito mais
+            Encontre arrecadações por categoria, localização e muito mais
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -146,7 +146,7 @@ export const ExplorePage = () => {
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Digite o título da vaquinha..."
+                  placeholder="Digite o título da arrecadação..."
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
                   className="pl-10"
@@ -206,14 +206,14 @@ export const ExplorePage = () => {
       ) : fundraisers.length === 0 ? (
         <EmptyState
           icon={Heart}
-          title="Nenhuma vaquinha encontrada"
-          description="Não encontramos vaquinhas com os filtros aplicados. Tente ajustar os filtros ou criar uma nova vaquinha."
+          title="Nenhuma arrecadação encontrada"
+          description="Não encontramos arrecadações com os filtros aplicados. Tente ajustar os filtros ou criar uma nova arrecadação."
         />
       ) : (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              Encontradas {total} vaquinhas
+              Encontradas {total} arrecadações
             </p>
           </div>
 
