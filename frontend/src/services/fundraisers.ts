@@ -49,5 +49,12 @@ export const fundraisersService = {
       total_raised: fundraisers.reduce((sum, f) => sum + f.current_amount, 0),
       total_contributions: 0 // We'll get this from contributions service
     };
-  }
+  },
+
+  updateStatus: async (
+    fundraiserId: string,
+    payload: { status: "ACTIVE" | "PAUSED" | "FINISHED"; reason?: string }
+  ): Promise<void> => {
+    await api.patch(`/fundraisers/${fundraiserId}/status`, payload);
+  },
 };

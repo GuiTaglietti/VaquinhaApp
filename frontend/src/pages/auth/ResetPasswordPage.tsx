@@ -1,7 +1,12 @@
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { Eye, EyeOff, Heart, Lock } from "lucide-react";
+import { Eye, EyeOff, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,10 +18,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { authService } from "@/services/auth";
-import { ResetPasswordRequest } from "@/types";
 import { toast } from "react-hot-toast";
 import heroImage from "@/assets/hero-image.jpeg";
+import api from "@/lib/api";
 
 interface ResetForm {
   password: string;
@@ -24,8 +28,12 @@ interface ResetForm {
 }
 
 export const ResetPasswordPage = () => {
-  const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
+  const { token: paramToken } = useParams<{ token: string }>();
+  const [searchParams] = useSearchParams();
+  const queryToken = (searchParams.get("token") || "").trim();
+  const token = (paramToken || queryToken || "").trim();
+
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -39,21 +47,23 @@ export const ResetPasswordPage = () => {
 
   const onSubmit = async (data: ResetForm) => {
     if (!token) {
-      toast.error("Token inválido");
+      toast.error("Link inválido ou expirado. Solicite um novo e-mail.");
       return;
     }
-
     try {
       setIsLoading(true);
-      await authService.resetPassword({
+      await api.patch("/auth/reset-password", {
         token,
-        password: data.password,
+        new_password: data.password,
       });
-      toast.success("Senha redefinida com sucesso!");
-      navigate("/auth/login");
-    } catch (error) {
-      console.error("Reset password failed:", error);
-      toast.error("Erro ao redefinir senha. Token pode ter expirado.");
+      toast.success("Senha redefinida com sucesso! Faça login.");
+      navigate("/auth/login", { replace: true });
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        "Não foi possível redefinir sua senha.";
+      toast.error(String(msg));
     } finally {
       setIsLoading(false);
     }
@@ -68,20 +78,6 @@ export const ResetPasswordPage = () => {
           style={{ backgroundImage: `url(${heroImage})` }}
         />
         <div className="absolute inset-0 gradient-hero opacity-90" />
-        <div className="relative flex flex-col justify-center items-center text-white p-12">
-          <div className="text-center space-y-6">
-            <div className="flex items-center justify-center gap-3">
-              <div className="h-7 w-7 flex items-center justify-center">
-                <img src="/favicon.ico" alt="Logo" className="h-4 w-4" />
-              </div>
-              <h1 className="text-3xl font-bold">Velório Solidário</h1>
-            </div>
-            <p className="text-lg opacity-90 max-w-md">
-              Defina uma nova senha segura para sua conta e continue fazendo a
-              diferença.
-            </p>
-          </div>
-        </div>
       </div>
 
       {/* Right side - Reset Password Form */}
@@ -117,8 +113,8 @@ export const ResetPasswordPage = () => {
                       {...register("password", {
                         required: "Senha é obrigatória",
                         minLength: {
-                          value: 6,
-                          message: "Senha deve ter no mínimo 6 caracteres",
+                          value: 8,
+                          message: "Senha deve ter no mínimo 8 caracteres",
                         },
                       })}
                     />

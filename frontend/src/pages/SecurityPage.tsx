@@ -38,6 +38,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/store/auth";
 import { useEffect } from "react";
+import { BRAZILIAN_BANKS } from "@/types/profile";
 
 interface ChangePasswordForm {
   current_password: string;
@@ -94,6 +95,12 @@ export const SecurityPage = () => {
     } catch (error) {
       console.error("Error loading bank accounts:", error);
     }
+  };
+
+  const bankLabelByCode = (code?: string, fallbackName?: string) => {
+    if (!code) return fallbackName ?? "";
+    const meta = BRAZILIAN_BANKS.find((b) => b.code === code);
+    return `${code} - ${meta?.name ?? fallbackName ?? code}`;
   };
 
   const onChangePassword = async (data: ChangePasswordForm) => {
@@ -340,7 +347,11 @@ export const SecurityPage = () => {
                     <SelectContent>
                       {bankAccounts.map((account) => (
                         <SelectItem key={account.id} value={account.id}>
-                          {account.bank_name} - {account.account_number}
+                          {bankLabelByCode(
+                            account.bank_code,
+                            account.bank_name
+                          )}{" "}
+                          — {account.account_number}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -72,21 +72,34 @@ const App = () => (
         <Routes>
           {/* PUBLIC */}
           <Route path="/" element={<PublicHomePage />} />
-          <Route path="/explore" element={
-            <PublicShell>
-              <ExplorePage />
-            </PublicShell>
-          } />
-          <Route path="/p/:slug" element={
-            <PublicShell>
-              <PublicFundraiserPage />
-            </PublicShell>
-          } />
+          <Route
+            path="/explore"
+            element={
+              <PublicShell>
+                <ExplorePage />
+              </PublicShell>
+            }
+          />
+          <Route
+            path="/p/:slug"
+            element={
+              <PublicShell>
+                <PublicFundraiserPage />
+              </PublicShell>
+            }
+          />
           <Route path="/a/:token" element={<AuditPage />} />
           <Route path="/auth/login" element={<LoginPage />} />
           <Route path="/auth/register" element={<RegisterPage />} />
-          <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+          <Route
+            path="/auth/forgot-password"
+            element={<ForgotPasswordPage />}
+          />
+          <Route path="/auth/reset" element={<ResetPasswordPage />} />
+          <Route
+            path="/auth/reset-password/:token"
+            element={<ResetPasswordPage />}
+          />
           <Route path="/auth/confirm" element={<ConfirmEmailResultPage />} />
 
           {/* PROTECTED (/app/...) */}
@@ -150,13 +163,16 @@ const App = () => (
               </ProtectedRoute>
             }
           />
-          <Route path="/app/fundraisers/:id/control" element={
-            <ProtectedRoute>
-              <AppShell>
-                <FundraiserControlPage />
-              </AppShell>
-            </ProtectedRoute>
-          } />
+          <Route
+            path="/app/fundraisers/:id/control"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <FundraiserControlPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/app/contributions"
             element={

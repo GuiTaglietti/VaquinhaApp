@@ -1,5 +1,7 @@
 import re
 import uuid
+import os
+import requests
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
@@ -7,6 +9,34 @@ from passlib.hash import bcrypt
 from flask import current_app
 from .models import User, BankAccount
 from datetime import timezone
+from sqlalchemy import and_
+from app.extensions import db
+
+def is_document_in_use(document_number: str, document_type: str, *, exclude_user_id: Optional[str] = None, tenant_id: Optional[str] = None) -> bool:
+    if not document_number or not document_type:
+        return False
+
+    q = User.query.filter(
+        and_(
+            User.document_type == document_type,
+            User.document_number == document_number,
+        )
+    )
+
+    if tenant_id is not None:
+        q = q.filter(User.tenant_id == tenant_id)
+
+    if exclude_user_id is not None:
+        q = q.filter(User.id != exclude_user_id)
+
+    return db.session.query(q.exists()).scalar()
+
+
+def is_cpf_in_use(cpf: str, *, exclude_user_id: Optional[str] = None, tenant_id: Optional[str] = None) -> bool:
+    return is_document_in_use(cpf, "CPF", exclude_user_id=exclude_user_id, tenant_id=tenant_id)
+
+def is_cnpj_in_use(cnpj: str, *, exclude_user_id: Optional[str] = None, tenant_id: Optional[str] = None) -> bool:
+    return is_document_in_use(cnpj, "CNPJ", exclude_user_id=exclude_user_id, tenant_id=tenant_id)
 
 def generate_slug(title: str) -> str:
     slug_base = re.sub(r"[^a-zA-Z0-9]+", "-", title.lower()).strip("-")
@@ -101,3 +131,21 @@ def iso_utc(dt):
         return None
     
     return dt.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def notify_admin_webhook(path: str, payload: dict):
+    base = (os.getenv("ADMIN_BACKEND_URL") or "").rstrip("/")
+    if not base:
+        current_app.logger.warning("ADMIN_BACKEND_URL não definido; ignorando webhook %s", path)
+        return
+
+    url = f"{base}{path}"
+    headers = {}
+    key = (os.getenv("ADMIN_WEBHOOK_KEY") or "").strip()
+    if key:
+        headers["X-Admin-Api-Key"] = key
+
+    try:
+        requests.post(url, json=payload, headers=headers, timeout=5)
+    except Exception as exc:
+        current_app.logger.exception("Falha ao chamar webhook %s: %s", url, exc)

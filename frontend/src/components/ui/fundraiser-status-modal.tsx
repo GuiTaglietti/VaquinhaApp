@@ -1,3 +1,4 @@
+// FundraiserStatusModal.tsx
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { AlertTriangle, Play, Pause, Square } from "lucide-react";
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { toast } from "react-hot-toast";
+import { fundraisersService } from "@/services/fundraisers";
 
 interface FundraiserStatusModalProps {
   fundraiserId: string;
@@ -80,22 +82,22 @@ export const FundraiserStatusModal = ({
     try {
       setIsSubmitting(true);
 
-      // TODO: Replace with actual API call
-      // await fundraisersService.updateStatus(fundraiserId, {
-      //   status: data.status,
-      //   reason: data.reason
-      // });
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await fundraisersService.updateStatus(fundraiserId, {
+        status: data.status,
+        reason: data.reason,
+      });
 
       onStatusChange(data.status);
       toast.success("Status da vaquinha atualizado com sucesso!");
       setOpen(false);
-      reset();
-    } catch (error) {
+      reset({ status: data.status, reason: "" });
+    } catch (error: any) {
       console.error("Error updating fundraiser status:", error);
-      toast.error("Erro ao atualizar status. Tente novamente.");
+      const msg =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Erro ao atualizar status. Tente novamente.";
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -200,7 +202,9 @@ export const FundraiserStatusModal = ({
             <p className="font-medium mb-1">Importante:</p>
             <ul className="space-y-1 text-xs">
               <li>• O controle de saques permanece independente do status</li>
-              <li>• Arrecadações pausadas ou finalizadas podem ser reativadas</li>
+              <li>
+                • Arrecadações pausadas ou finalizadas podem ser reativadas
+              </li>
               <li>• Contribuições só são aceitas em vaquinhas ativas</li>
             </ul>
           </div>

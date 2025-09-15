@@ -34,6 +34,88 @@ import { FundraiserStats } from "@/types/withdrawals";
 import { BankAccount } from "@/types/profile";
 import { toast } from "react-hot-toast";
 
+// --- Helpers ---
+const normStatus = (s?: string) =>
+  (s || "ACTIVE").toUpperCase() as "ACTIVE" | "PAUSED" | "FINISHED";
+
+const formatDateSafe = (dateString?: string | null) => {
+  if (!dateString) return "-";
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("pt-BR");
+};
+
+const formatDateTimeSafe = (dateString?: string | null) => {
+  if (!dateString) return "-";
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const getFundraiserStatusColor = (status: string) => {
+  switch (normStatus(status)) {
+    case "ACTIVE":
+      return "bg-green-100 text-green-800 border-green-200";
+    case "PAUSED":
+      return "bg-yellow-100 text-yellow-800 border-yellow-200";
+    case "FINISHED":
+      return "bg-gray-100 text-gray-800 border-gray-200";
+    default:
+      return "bg-blue-100 text-blue-800 border-blue-200";
+  }
+};
+
+const getFundraiserStatusLabel = (status: string) => {
+  switch (normStatus(status)) {
+    case "ACTIVE":
+      return "Ativo";
+    case "PAUSED":
+      return "Pausado";
+    case "FINISHED":
+      return "Finalizado";
+    default:
+      return status;
+  }
+};
+
+const getWithdrawalStatusColor = (status: string) => {
+  const key = (status || "").toUpperCase();
+  switch (key) {
+    case "COMPLETED":
+      return "bg-success text-success-foreground";
+    case "PROCESSING":
+      return "bg-warning text-warning-foreground";
+    case "PENDING":
+      return "bg-muted text-foreground";
+    case "FAILED":
+      return "bg-destructive text-destructive-foreground";
+    default:
+      return "bg-muted text-foreground";
+  }
+};
+
+const getWithdrawalStatusLabel = (status: string) => {
+  const key = (status || "").toUpperCase();
+  switch (key) {
+    case "COMPLETED":
+      return "Concluído";
+    case "PROCESSING":
+      return "Processando";
+    case "PENDING":
+      return "Pendente";
+    case "FAILED":
+      return "Falhou";
+    default:
+      return status;
+  }
+};
+
 export const FundraiserControlPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -43,7 +125,9 @@ export const FundraiserControlPage = () => {
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [withdrawalModalOpen, setWithdrawalModalOpen] = useState(false);
-  const [fundraiserStatus, setFundraiserStatus] = useState("ACTIVE");
+  const [fundraiserStatus, setFundraiserStatus] = useState<
+    "ACTIVE" | "PAUSED" | "FINISHED"
+  >("ACTIVE");
 
   const fetchData = async () => {
     if (!id) return;
@@ -59,9 +143,9 @@ export const FundraiserControlPage = () => {
       setFundraiser(fundraiserData);
       setStats(statsData);
       setBankAccounts(bankAccountsData);
-      setFundraiserStatus(fundraiserData.status || "ACTIVE");
+      setFundraiserStatus(normStatus(fundraiserData.status));
     } catch (error) {
-      toast.error("Erro ao carregar dados da vaquinha");
+      toast.error("Erro ao carregar dados da arrecadação");
       navigate("/app/fundraisers");
     } finally {
       setIsLoading(false);
@@ -70,6 +154,7 @@ export const FundraiserControlPage = () => {
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const formatCurrency = (value: number) =>
@@ -78,54 +163,21 @@ export const FundraiserControlPage = () => {
       currency: "BRL",
     }).format(value);
 
-  const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString("pt-BR");
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "ACTIVE":
-        return "bg-green-100 text-green-800 border-green-200";
-      case "PAUSED":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      case "FINISHED":
-        return "bg-gray-100 text-gray-800 border-gray-200";
-      default:
-        return "bg-blue-100 text-blue-800 border-blue-200";
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "ACTIVE":
-        return "Ativo";
-      case "PAUSED":
-        return "Pausado";
-      case "FINISHED":
-        return "Finalizado";
-      default:
-        return status;
-    }
-  };
-
   const handleStatusChange = (newStatus: string) => {
-    setFundraiserStatus(newStatus);
-    // Recarrega para refletir valores atualizados, se necessário
+    setFundraiserStatus(normStatus(newStatus));
     fetchData();
   };
 
-  const getWithdrawalStatusColor = (status: string) => {
-    switch (status) {
-      case "COMPLETED":
-        return "bg-success";
-      case "PROCESSING":
-        return "bg-warning";
-      case "PENDING":
-        return "bg-muted";
-      case "FAILED":
-        return "bg-destructive";
-      default:
-        return "bg-muted";
-    }
+  const bankLabelByCode = (code?: string, fallbackName?: string) => {
+    if (!code) return fallbackName ?? "";
+    // Se BRAZILIAN_BANKS existir no projeto, usa; senão, mantém fallback
+    // @ts-ignore
+    const meta =
+      typeof BRAZILIAN_BANKS !== "undefined"
+        ? // @ts-ignore
+          BRAZILIAN_BANKS.find((b) => b.code === code)
+        : undefined;
+    return `${code} - ${meta?.name ?? fallbackName ?? code}`;
   };
 
   if (isLoading) {
@@ -139,7 +191,7 @@ export const FundraiserControlPage = () => {
   if (!fundraiser || !stats) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Vaquinha não encontrada</p>
+        <p className="text-muted-foreground">Arrecadação não encontrada</p>
       </div>
     );
   }
@@ -160,21 +212,19 @@ export const FundraiserControlPage = () => {
           <div>
             <h1 className="text-2xl font-bold">{fundraiser.title}</h1>
             <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-              <span className="flex items-center gap-1">
-                <Calendar className="h-4 w-4" />
-                Criada em {formatDate(fundraiser.created_at)}
-              </span>
               {(fundraiser.city || fundraiser.state) && (
                 <span className="flex items-center gap-1">
                   <MapPin className="h-4 w-4" />
-                  {fundraiser.city}, {fundraiser.state}
+                  {fundraiser.city}
+                  {fundraiser.city && fundraiser.state ? ", " : ""}
+                  {fundraiser.state}
                 </span>
               )}
               <Badge
                 variant="outline"
-                className={getStatusColor(fundraiserStatus)}
+                className={getFundraiserStatusColor(fundraiserStatus)}
               >
-                {getStatusLabel(fundraiserStatus)}
+                {getFundraiserStatusLabel(fundraiserStatus)}
               </Badge>
             </div>
           </div>
@@ -270,7 +320,7 @@ export const FundraiserControlPage = () => {
                         </TableCell>
                         <TableCell>{contribution.message || "-"}</TableCell>
                         <TableCell>
-                          {formatDate(contribution.created_at)}
+                          {formatDateTimeSafe(contribution.created_at)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -306,13 +356,18 @@ export const FundraiserControlPage = () => {
                     {stats.withdrawals.map((withdrawal) => (
                       <TableRow key={withdrawal.id}>
                         <TableCell>
-                          {withdrawal.bank_account.bank_name}
+                          {bankLabelByCode(
+                            // @ts-ignore (campo opcional no backend)
+                            withdrawal.bank_account?.bank_code,
+                            withdrawal.bank_account?.bank_name
+                          )}
                           <br />
                           <span className="text-sm text-muted-foreground">
-                            {withdrawal.bank_account.agency}/
-                            {withdrawal.bank_account.account_number}
+                            {withdrawal.bank_account?.agency}/
+                            {withdrawal.bank_account?.account_number}
                           </span>
                         </TableCell>
+
                         <TableCell className="font-medium">
                           {formatCurrency(withdrawal.amount)}
                         </TableCell>
@@ -322,15 +377,15 @@ export const FundraiserControlPage = () => {
                               withdrawal.status
                             )}
                           >
-                            {withdrawal.status}
+                            {getWithdrawalStatusLabel(withdrawal.status)}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {formatDate(withdrawal.requested_at)}
+                          {formatDateTimeSafe(withdrawal.requested_at)}
                         </TableCell>
                         <TableCell>
                           {withdrawal.processed_at
-                            ? formatDate(withdrawal.processed_at)
+                            ? formatDateTimeSafe(withdrawal.processed_at)
                             : "-"}
                         </TableCell>
                       </TableRow>
@@ -345,7 +400,7 @@ export const FundraiserControlPage = () => {
         <TabsContent value="details" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Detalhes da Vaquinha</CardTitle>
+              <CardTitle>Detalhes da Arrecadação</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -375,7 +430,7 @@ export const FundraiserControlPage = () => {
                   <h4 className="font-medium mb-2">Imagem de Capa</h4>
                   <img
                     src={fundraiser.cover_image_url}
-                    alt="Capa da vaquinha"
+                    alt="Capa da arrecadação"
                     className="rounded-lg max-w-full h-48 object-cover"
                   />
                 </div>

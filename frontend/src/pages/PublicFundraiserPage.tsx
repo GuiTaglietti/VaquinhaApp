@@ -52,7 +52,7 @@ export const PublicFundraiserPage = () => {
       setFundraiser(data);
     } catch (error) {
       console.error("Error fetching public fundraiser:", error);
-      toast.error("Vaquinha não encontrada ou indisponível");
+      toast.error("Arrecadação não encontrada ou indisponível");
     } finally {
       setIsLoading(false);
     }
@@ -153,10 +153,10 @@ export const PublicFundraiserPage = () => {
           <CardContent className="p-8 text-center">
             <Heart className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">
-              Vaquinha não encontrada
+              Arrecadação não encontrada
             </h2>
             <p className="text-muted-foreground">
-              A vaquinha que você está procurando não existe ou não está mais
+              A arrecadação que você está procurando não existe ou não está mais
               disponível.
             </p>
           </CardContent>
@@ -234,7 +234,7 @@ export const PublicFundraiserPage = () => {
                   {fundraiser.description && (
                     <div className="pt-4">
                       <h3 className="font-semibold mb-3">
-                        Sobre esta vaquinha
+                        Sobre esta arrecadação
                       </h3>
                       <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">
                         {fundraiser.description}

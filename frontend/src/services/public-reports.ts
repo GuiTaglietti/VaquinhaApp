@@ -15,4 +15,8 @@ export const invoicesService = {
     const response = await api.get("/invoices");
     return response.data;
   },
+
+  async downloadInvoice(id: string) {
+    return api.get(`/invoices/${id}/download`, { responseType: "blob" });
+  },
 };

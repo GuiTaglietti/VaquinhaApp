@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 
 from ..extensions import db
 from ..models import User, BankAccount, AccountType
-from ..utils import only_digits, validate_cpf, validate_cnpj
+from ..utils import only_digits, validate_cpf, validate_cnpj, is_cpf_in_use, is_cnpj_in_use
 from ..decorators import tenant_required
 
 profile_bp = Blueprint("profile", __name__)
@@ -71,11 +71,20 @@ def update_profile():
         u.document_type = data["document_type"]
 
     if "document_number" in data:
-        num = only_digits(data["document_number"])
-        if u.document_type == "CPF" and num and not validate_cpf(num):
-            return jsonify({"error": "invalid_cpf"}), 422
-        if u.document_type == "CNPJ" and num and not validate_cnpj(num):
-            return jsonify({"error": "invalid_cnpj"}), 422
+        num = only_digits(data["document_number"]) or ""
+
+        if u.document_type == "CPF":
+            if not validate_cpf(num):
+                return jsonify({"error": "invalid_cpf"}), 422
+            if is_cpf_in_use(num, exclude_user_id=u.id, tenant_id=getattr(g, "tenant_id", None)):
+                return jsonify({"error": "cpf_already_registered"}), 409
+
+        elif u.document_type == "CNPJ":
+            if not validate_cnpj(num):
+                return jsonify({"error": "invalid_cnpj"}), 422
+            if is_cnpj_in_use(num, exclude_user_id=u.id, tenant_id=getattr(g, "tenant_id", None)):
+                return jsonify({"error": "cnpj_already_registered"}), 409
+
         u.document_number = num
 
     if "rg" in data:

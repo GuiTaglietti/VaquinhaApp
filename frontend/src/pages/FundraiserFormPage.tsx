@@ -24,7 +24,9 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { Progress } from "@/components/ui/progress";
 import { fundraisersService } from "@/services/fundraisers";
+import { uploadsService } from "@/services/uploads";
 import {
   CreateFundraiserRequest,
   UpdateFundraiserRequest,
@@ -46,6 +48,8 @@ export const FundraiserFormPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(isEditing);
   const [imageType, setImageType] = useState<"upload" | "url">("url");
+  const [uploading, setUploading] = useState(false);
+  const [uploadPct, setUploadPct] = useState(0);
 
   const {
     register,
@@ -59,6 +63,10 @@ export const FundraiserFormPage = () => {
   const watchIsPublic = watch("is_public");
   const watchAgeConfirmation = watch("age_confirmation");
   const watchTermsAccepted = watch("terms_accepted");
+  const coverImageUrl = watch("cover_image_url");
+
+  const setCoverUrl = (url: string) =>
+    setValue("cover_image_url", url, { shouldValidate: true });
 
   useEffect(() => {
     if (isEditing && id) {
@@ -71,7 +79,6 @@ export const FundraiserFormPage = () => {
       setIsLoadingData(true);
       const fundraiser = await fundraisersService.getById(id!);
 
-      // Reset form with fundraiser data
       reset({
         title: fundraiser.title,
         description: fundraiser.description || "",
@@ -94,7 +101,6 @@ export const FundraiserFormPage = () => {
     try {
       setIsLoading(true);
 
-      // Prepare the payload without form-specific fields
       const {
         image_type,
         age_confirmation,
@@ -121,7 +127,9 @@ export const FundraiserFormPage = () => {
     } catch (error) {
       console.error("Error saving fundraiser:", error);
       toast.error(
-        isEditing ? "Erro ao atualizar arrecadação" : "Erro ao criar arrecadação"
+        isEditing
+          ? "Erro ao atualizar arrecadação"
+          : "Erro ao criar arrecadação"
       );
     } finally {
       setIsLoading(false);
@@ -160,6 +168,7 @@ export const FundraiserFormPage = () => {
                 <CardTitle>Informações Básicas</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Título */}
                 <div className="space-y-2">
                   <Label htmlFor="title">
                     Título da Arrecadação{" "}
@@ -183,6 +192,7 @@ export const FundraiserFormPage = () => {
                   )}
                 </div>
 
+                {/* Meta */}
                 <div className="space-y-2">
                   <Label htmlFor="goal_amount">
                     Meta de Arrecadação (R$){" "}
@@ -210,6 +220,7 @@ export const FundraiserFormPage = () => {
                   )}
                 </div>
 
+                {/* Descrição */}
                 <div className="space-y-2">
                   <Label htmlFor="description">Descrição</Label>
                   <Textarea
@@ -223,10 +234,11 @@ export const FundraiserFormPage = () => {
                   </p>
                 </div>
 
+                {/* Imagem */}
                 <div className="space-y-4">
                   <Label>Imagem de Capa</Label>
 
-                  {/* Image Type Selection */}
+                  {/* Botões de seleção */}
                   <div className="flex gap-4">
                     <Button
                       type="button"
@@ -250,6 +262,7 @@ export const FundraiserFormPage = () => {
                     </Button>
                   </div>
 
+                  {/* URL ou Upload */}
                   {imageType === "url" ? (
                     <div className="space-y-2">
                       <Input
@@ -258,6 +271,15 @@ export const FundraiserFormPage = () => {
                         placeholder="https://exemplo.com/imagem.jpg"
                         {...register("cover_image_url")}
                       />
+                      {coverImageUrl ? (
+                        <div className="mt-2">
+                          <img
+                            src={coverImageUrl}
+                            alt="Pré-visualização"
+                            className="w-full max-h-60 object-cover rounded-lg border"
+                          />
+                        </div>
+                      ) : null}
                       <p className="text-xs text-muted-foreground">
                         Cole a URL de uma imagem que represente bem sua causa
                       </p>
@@ -274,13 +296,42 @@ export const FundraiserFormPage = () => {
                           accept="image/*"
                           className="hidden"
                           id="image-upload"
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const file = e.target.files?.[0];
-                            if (file) {
-                              // Here you would typically upload the file and get a URL
-                              toast.success(
-                                "Funcionalidade de upload será implementada em breve"
+                            if (!file) return;
+
+                            const maxMB = 5;
+                            if (file.size > maxMB * 1024 * 1024) {
+                              toast.error(`Arquivo acima de ${maxMB}MB`);
+                              return;
+                            }
+                            const okTypes = [
+                              "image/jpeg",
+                              "image/png",
+                              "image/gif",
+                              "image/webp",
+                            ];
+                            if (!okTypes.includes(file.type)) {
+                              toast.error("Tipo de arquivo não suportado");
+                              return;
+                            }
+
+                            try {
+                              setUploading(true);
+                              setUploadPct(0);
+                              const res = await uploadsService.uploadImage(
+                                file,
+                                (pct) => setUploadPct(pct)
                               );
+                              setCoverUrl(res.url);
+                              toast.success("Imagem enviada com sucesso!");
+                            } catch (err: any) {
+                              console.error(err);
+                              toast.error(
+                                err?.response?.data?.error || "Falha no upload"
+                              );
+                            } finally {
+                              setUploading(false);
                             }
                           }}
                         />
@@ -291,19 +342,41 @@ export const FundraiserFormPage = () => {
                           onClick={() =>
                             document.getElementById("image-upload")?.click()
                           }
+                          disabled={uploading}
                         >
                           Selecionar Arquivo
                         </Button>
+
+                        {uploading ? (
+                          <div className="mt-3 space-y-2">
+                            <p className="text-xs text-muted-foreground">
+                              Enviando... {uploadPct}%
+                            </p>
+                            <Progress value={uploadPct} />
+                          </div>
+                        ) : null}
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Formatos aceitos: JPG, PNG, GIF (máx. 5MB)
-                      </p>
+
+                      {coverImageUrl ? (
+                        <div className="mt-2">
+                          <img
+                            src={coverImageUrl}
+                            alt="Pré-visualização"
+                            className="w-full max-h-60 object-cover rounded-lg border"
+                          />
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Formatos aceitos: JPG, PNG, GIF, WEBP (máx. 5MB)
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
               </CardContent>
             </Card>
 
+            {/* Localização */}
             <Card className="gradient-card border-0 shadow-soft">
               <CardHeader>
                 <CardTitle>Localização</CardTitle>
@@ -321,7 +394,10 @@ export const FundraiserFormPage = () => {
 
                   <div className="space-y-2">
                     <Label htmlFor="state">Estado</Label>
-                    <Select onValueChange={(value) => setValue("state", value)}>
+                    <Select
+                      value={watch("state")}
+                      onValueChange={(value) => setValue("state", value)}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione o estado" />
                       </SelectTrigger>
@@ -374,7 +450,7 @@ export const FundraiserFormPage = () => {
               </CardContent>
             </Card>
 
-            {/* Terms and Confirmations */}
+            {/* Termos e confirmações */}
             {!isEditing && (
               <Card className="gradient-card border-0 shadow-soft">
                 <CardHeader>
@@ -392,7 +468,7 @@ export const FundraiserFormPage = () => {
                     <div className="space-y-1">
                       <Label
                         htmlFor="age_confirmation"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        className="text-sm font-medium"
                       >
                         Confirmação de Idade
                       </Label>
@@ -414,7 +490,7 @@ export const FundraiserFormPage = () => {
                     <div className="space-y-1">
                       <Label
                         htmlFor="terms_accepted"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        className="text-sm font-medium"
                       >
                         Termos e Condições
                       </Label>
@@ -448,7 +524,7 @@ export const FundraiserFormPage = () => {
               </Card>
             )}
 
-            {/* Actions */}
+            {/* Ações */}
             <Card className="gradient-card border-0 shadow-soft">
               <CardHeader>
                 <CardTitle>Ações</CardTitle>
@@ -471,7 +547,9 @@ export const FundraiserFormPage = () => {
                   ) : (
                     <>
                       <Save className="w-4 h-4 mr-2" />
-                      {isEditing ? "Atualizar Arrecadação" : "Criar Arrecadação"}
+                      {isEditing
+                        ? "Atualizar Arrecadação"
+                        : "Criar Arrecadação"}
                     </>
                   )}
                 </Button>

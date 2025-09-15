@@ -1,7 +1,17 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
-import { Line, Pie } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+} from "chart.js";
+import { Line, Pie } from "react-chartjs-2";
 import { Heart, TrendingUp, Users, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +23,16 @@ import { fundraisersService } from "@/services/fundraisers";
 import { contributionsService } from "@/services/contributions";
 import { Fundraiser } from "@/types";
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement
+);
 
 export const DashboardPage = () => {
   const [fundraisers, setFundraisers] = useState<Fundraiser[]>([]);
@@ -27,13 +46,13 @@ export const DashboardPage = () => {
         setIsLoading(true);
         const [fundraisersData, contributionsData] = await Promise.all([
           fundraisersService.getAll(),
-          contributionsService.getMine()
+          contributionsService.getMine(),
         ]);
-        
+
         setFundraisers(fundraisersData);
         setContributionsCount(contributionsData.length);
       } catch (error) {
-        console.error('Error fetching dashboard data:', error);
+        console.error("Error fetching dashboard data:", error);
       } finally {
         setIsLoading(false);
       }
@@ -46,55 +65,68 @@ export const DashboardPage = () => {
   const totalGoal = fundraisers.reduce((sum, f) => sum + f.goal_amount, 0);
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
     }).format(value);
   };
 
-  // Chart data for fundraising progress
+  // ---------- Helpers de status (normalização + labels PT-BR) ----------
+  const STATUS_ORDER = ["ACTIVE", "PAUSED", "FINISHED"] as const;
+  const STATUS_LABELS: Record<(typeof STATUS_ORDER)[number], string> = {
+    ACTIVE: "Ativas",
+    PAUSED: "Pausadas",
+    FINISHED: "Finalizadas",
+  };
+  const normalizeStatus = (s?: string) =>
+    (s ?? "").toString().trim().toUpperCase();
+
+  // Line chart (progresso por campanha)
   const lineChartData = {
-    labels: fundraisers.map(f => f.title.substring(0, 20) + '...'),
+    labels: fundraisers.map((f) =>
+      f.title.length > 20 ? f.title.substring(0, 20) + "..." : f.title
+    ),
     datasets: [
       {
-        label: 'Meta',
-        data: fundraisers.map(f => f.goal_amount),
-        borderColor: 'hsl(180, 25%, 35%)',
-        backgroundColor: 'hsl(180, 25%, 35%, 0.1)',
+        label: "Meta",
+        data: fundraisers.map((f) => f.goal_amount),
+        borderColor: "hsl(180, 25%, 35%)",
+        backgroundColor: "hsl(180, 25%, 35%, 0.1)",
         tension: 0.4,
       },
       {
-        label: 'Arrecadado',
-        data: fundraisers.map(f => f.current_amount),
-        borderColor: 'hsl(14, 100%, 57%)',
-        backgroundColor: 'hsl(14, 100%, 57%, 0.1)',
+        label: "Arrecadado",
+        data: fundraisers.map((f) => f.current_amount),
+        borderColor: "hsl(14, 100%, 57%)",
+        backgroundColor: "hsl(14, 100%, 57%, 0.1)",
         tension: 0.4,
       },
     ],
   };
 
-  // Chart data for status distribution
-  const statusCounts = fundraisers.reduce((acc, f) => {
-    acc[f.status] = (acc[f.status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  // Pie chart (distribuição por status) — normaliza status vindos do backend
+  const statusCounts = STATUS_ORDER.reduce(
+    (acc, key) => ({ ...acc, [key]: 0 }),
+    {} as Record<(typeof STATUS_ORDER)[number], number>
+  );
+
+  fundraisers.forEach((f) => {
+    const s = normalizeStatus(f.status);
+    if (STATUS_ORDER.includes(s as any)) {
+      statusCounts[s as (typeof STATUS_ORDER)[number]] += 1;
+    }
+    // Se aparecer algum status desconhecido, ignoramos para manter cores/ordem
+  });
 
   const pieChartData = {
-    labels: Object.keys(statusCounts).map(status => {
-      const statusLabels = {
-        ACTIVE: 'Ativas',
-        PAUSED: 'Pausadas',
-        FINISHED: 'Finalizadas'
-      };
-      return statusLabels[status as keyof typeof statusLabels] || status;
-    }),
+    labels: STATUS_ORDER.map((k) => STATUS_LABELS[k]),
     datasets: [
       {
-        data: Object.values(statusCounts),
+        data: STATUS_ORDER.map((k) => statusCounts[k]),
         backgroundColor: [
-          'hsl(142, 76%, 36%)',
-          'hsl(38, 92%, 50%)',
-          'hsl(0, 84%, 60%)',
+          "hsl(142, 76%, 36%)", // ACTIVE
+          "hsl(38, 92%, 50%)", // PAUSED
+          "hsl(0, 84%, 60%)", // FINISHED
         ],
         borderWidth: 0,
       },
@@ -106,7 +138,7 @@ export const DashboardPage = () => {
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        position: 'top' as const,
+        position: "top" as const,
       },
     },
   };
@@ -124,8 +156,8 @@ export const DashboardPage = () => {
       <div className="space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <h1 className="text-3xl font-bold">Dashboard</h1>
-          <Button 
-            onClick={() => navigate('/app/fundraisers/new')}
+          <Button
+            onClick={() => navigate("/app/fundraisers/new")}
             className="gradient-primary text-white shadow-medium hover:shadow-strong transition-smooth"
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -139,7 +171,7 @@ export const DashboardPage = () => {
           description="Você ainda não criou nenhuma arrecadação. Que tal começar criando sua primeira campanha de arrecadação?"
           action={{
             label: "Criar primeira arrecadação",
-            onClick: () => navigate('/app/fundraisers/new')
+            onClick: () => navigate("/app/fundraisers/new"),
           }}
         />
       </div>
@@ -150,8 +182,8 @@ export const DashboardPage = () => {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-3xl font-bold">Dashboard</h1>
-        <Button 
-          onClick={() => navigate('/app/fundraisers/new')}
+        <Button
+          onClick={() => navigate("/app/fundraisers/new")}
           className="gradient-primary text-white shadow-medium hover:shadow-strong transition-smooth"
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -187,7 +219,7 @@ export const DashboardPage = () => {
           <TabsTrigger value="progress">Progresso das Arrecadações</TabsTrigger>
           <TabsTrigger value="status">Status das Campanhas</TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="progress" className="space-y-4">
           <Card className="gradient-card border-0 shadow-soft">
             <CardHeader>

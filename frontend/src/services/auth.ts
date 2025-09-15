@@ -40,10 +40,10 @@ export const authService = {
   },
 
   async changePassword(data: ChangePasswordRequest): Promise<void> {
-    await api.post("/auth/change-password", data);
+    await api.patch("/auth/change-password", data);
   },
 
   async deleteAccount(data: DeleteAccountRequest): Promise<void> {
-    await api.delete("/auth/delete-account", { data });
+    await api.post("/auth/delete-account", data);
   },
 };

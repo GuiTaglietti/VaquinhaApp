@@ -5,7 +5,7 @@ from flask import Blueprint, request, jsonify, abort, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from ..extensions import db
-from ..models import Contribution, Fundraiser, PaymentStatus
+from ..models import Contribution, Fundraiser, PaymentStatus, FundraiserStatus
 
 contributions_bp = Blueprint("contributions", __name__)
 
@@ -18,7 +18,7 @@ def _get_fundraiser_or_404(fundraiser_id: str) -> Fundraiser:
 
 
 @contributions_bp.route("/fundraisers/<fundraiser_id>/contributions", methods=["POST"])
-@jwt_required(optional=True)  # contribuição pode ser pública
+@jwt_required(optional=True)
 def create_contribution(fundraiser_id):
     """Cria uma contribuição para uma vaquinha.
 
@@ -27,13 +27,19 @@ def create_contribution(fundraiser_id):
     """
     fundraiser = _get_fundraiser_or_404(fundraiser_id)
 
+    if fundraiser.status != FundraiserStatus.ACTIVE:
+        return jsonify({
+            "error": "fundraiser_not_active",
+            "message": "Esta vaquinha não está ativa para receber contribuições."
+        }), 422
+
     data = request.get_json() or {}
     amount_in = data.get("amount")
 
     # validação e conversão de amount para Decimal
     try:
         amount = Decimal(str(amount_in))
-        if amount <= 0:
+        if amount < 20:
             raise InvalidOperation()
     except (InvalidOperation, TypeError):
         return jsonify({"error": "invalid_request", "message": "Valor da contribuição inválido"}), 422

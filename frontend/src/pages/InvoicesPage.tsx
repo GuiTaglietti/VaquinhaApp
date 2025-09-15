@@ -13,6 +13,19 @@ import { invoicesService } from "@/services/public-reports";
 import { InvoiceData } from "@/types";
 import { toast } from "react-hot-toast";
 
+const ADMIN_BACKEND_PUBLIC =
+  (import.meta.env.VITE_ADMIN_BACKEND_PUBLIC as string) ||
+  "http://localhost:6090";
+
+function absolutize(url: string) {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${ADMIN_BACKEND_PUBLIC.replace(/\/+$/, "")}/${url.replace(
+    /^\/+/,
+    ""
+  )}`;
+}
+
 export const InvoicesPage = () => {
   const [invoices, setInvoices] = useState<InvoiceData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,46 +47,44 @@ export const InvoicesPage = () => {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("pt-BR", {
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
-    }).format(amount);
-  };
+    }).format(Number(amount || 0));
 
-  const formatDate = (dateString: string) => {
-    return new Intl.DateTimeFormat("pt-BR", {
+  const formatDate = (dateString: string) =>
+    new Intl.DateTimeFormat("pt-BR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
     }).format(new Date(dateString));
-  };
 
-  const handleDownloadPDF = (pdfUrl: string | undefined, invoiceId: string) => {
-    if (!pdfUrl) {
-      toast.error("PDF não disponível para esta nota fiscal");
-      return;
+  const handleDownloadPDF = async (invoice: InvoiceData) => {
+    try {
+      const res = await invoicesService.downloadInvoice(invoice.id);
+      const blob: Blob =
+        res.data instanceof Blob ? res.data : await res.blob?.();
+
+      if (!blob) throw new Error("Falha ao gerar PDF");
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `nota-fiscal-${invoice.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      toast.error("Não foi possível baixar o PDF desta nota fiscal.");
     }
-
-    // Create a temporary link and trigger download
-    const link = document.createElement("a");
-    link.href = pdfUrl;
-    link.download = `nota-fiscal-${invoiceId}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
-
-  const totalInvoiced = invoices.reduce(
-    (sum, invoice) => sum + invoice.amount,
-    0
-  );
-  const totalTaxes = invoices.reduce(
-    (sum, invoice) => sum + invoice.tax_amount,
-    0
-  );
+  const totalInvoiced = invoices.reduce((sum, i) => sum + i.amount, 0);
+  const totalTaxes = invoices.reduce((sum, i) => sum + i.tax_amount, 0);
 
   if (isLoading) {
     return (
@@ -219,13 +230,10 @@ export const InvoicesPage = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() =>
-                        handleDownloadPDF(invoice.pdf_url, invoice.id)
-                      }
-                      disabled={!invoice.pdf_url}
+                      onClick={() => handleDownloadPDF(invoice)}
                     >
                       <Download className="h-4 w-4 mr-2" />
-                      {invoice.pdf_url ? "Baixar PDF" : "PDF Indisponível"}
+                      Baixar PDF
                     </Button>
                   </div>
                 </div>

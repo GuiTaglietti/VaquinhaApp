@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: vaquinhas_db
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
     ports:
       - "55432:5432"
     volumes:
@@ -14,6 +14,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    secrets:
+      - db_password
 
   backend:
     build: ./backend
@@ -26,9 +28,24 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/app:/app/app
+      - uploads_data:/app/uploads
     environment:
-      - FLASK_ENV=development
+      FLASK_ENV: development
+      UPLOAD_DIR: /app/uploads
+      UPLOAD_PUBLIC_BASE: /files
+      DATABASE_HOST: db
+      DATABASE_USER: postgres
+      DATABASE_NAME: vaquinhas_db
+      DB_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
     command: ["/app/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5000/api/healthz || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
 
   frontend:
     image: node:20
@@ -52,5 +69,50 @@ services:
         npm run dev
       "
 
+  admin-backend:
+    build: ../admin-panel/admin-backend
+    env_file:
+      - ../admin-panel/admin-backend/.env
+    ports:
+      - "6090:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_HOST: db
+      DATABASE_USER: postgres
+      DATABASE_NAME: vaquinhas_db
+      DB_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    command: >
+      sh -lc "gunicorn app:app
+      -w 1
+      -k gthread
+      --threads 8
+      --timeout 0
+      -b 0.0.0.0:8000"
+
+  admin-frontend:
+    build:
+      context: ../admin-panel/admin-frontend
+      args:
+        VITE_ADMIN_API_URL: ${VITE_ADMIN_API_URL}
+        VITE_MAINTENANCE_FEE_PCT: ${VITE_MAINTENANCE_FEE_PCT}
+        VITE_APP_FRONTEND_URL: ${VITE_APP_FRONTEND_URL}
+    environment:
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
+      ADMIN_BACKEND_URL: http://admin-backend:8000
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx/conf.d
+    ports:
+      - "6091:80"
+    depends_on:
+      - admin-backend
+
 volumes:
   db_data:
+  uploads_data:
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt

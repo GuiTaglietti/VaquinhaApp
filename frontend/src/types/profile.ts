@@ -41,7 +41,7 @@ export interface UpdateProfileRequest {
 export interface BankAccount {
   id: string;
   bank_code: string;
-  bank_name: string;
+  bank_name?: string;
   agency: string;
   account_number: string;
   account_type: "CHECKING" | "SAVINGS";
@@ -54,6 +54,7 @@ export interface BankAccount {
 
 export interface CreateBankAccountRequest {
   bank_code: string;
+  bank_name?: string;
   agency: string;
   account_number: string;
   account_type: "CHECKING" | "SAVINGS";
@@ -64,6 +65,7 @@ export interface CreateBankAccountRequest {
 
 export interface UpdateBankAccountRequest {
   bank_code?: string;
+  bank_name?: string;
   agency?: string;
   account_number?: string;
   account_type?: "CHECKING" | "SAVINGS";

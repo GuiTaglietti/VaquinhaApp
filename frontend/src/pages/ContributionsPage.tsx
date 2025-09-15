@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { HandHeart, ExternalLink, Clock, CheckCircle, XCircle } from "lucide-react";
+import {
+  HandHeart,
+  ExternalLink,
+  Clock,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,49 +29,50 @@ export const ContributionsPage = () => {
       const data = await contributionsService.getMine();
       setContributions(data);
     } catch (error) {
-      console.error('Error fetching contributions:', error);
+      console.error("Error fetching contributions:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
     }).format(value);
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    return new Date(dateString).toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status?: string) => {
+    const key = (status || "").toLowerCase() as "pending" | "paid" | "failed";
     const config = {
-      PENDING: { 
-        icon: Clock, 
-        label: "Pendente", 
-        className: "bg-warning text-warning-foreground" 
+      pending: {
+        icon: Clock,
+        label: "Pendente",
+        className: "bg-warning text-warning-foreground",
       },
-      PAID: { 
-        icon: CheckCircle, 
-        label: "Pago", 
-        className: "bg-success text-success-foreground" 
+      paid: {
+        icon: CheckCircle,
+        label: "Pago",
+        className: "bg-success text-success-foreground",
       },
-      FAILED: { 
-        icon: XCircle, 
-        label: "Falhou", 
-        className: "bg-destructive text-destructive-foreground" 
-      }
+      failed: {
+        icon: XCircle,
+        label: "Falhou",
+        className: "bg-destructive text-destructive-foreground",
+      },
     };
     
-    const { icon: Icon, label, className } = config[status as keyof typeof config] || config.PENDING;
+    const { icon: Icon, label, className } = config[key] || config.pending;
     
     return (
       <Badge className={className}>
@@ -97,11 +104,11 @@ export const ContributionsPage = () => {
   }
 
   const totalContributed = contributions
-    .filter(c => c.payment_status === 'paid')
+    .filter((c) => c.payment_status === "paid")
     .reduce((sum, c) => sum + c.amount, 0);
 
   const totalPending = contributions
-    .filter(c => c.payment_status === 'pending')
+    .filter((c) => c.payment_status === "pending")
     .reduce((sum, c) => sum + c.amount, 0);
 
   return (
@@ -114,8 +121,12 @@ export const ContributionsPage = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Contribuído</p>
-                <p className="text-2xl font-bold text-success">{formatCurrency(totalContributed)}</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Total Contribuído
+                </p>
+                <p className="text-2xl font-bold text-success">
+                  {formatCurrency(totalContributed)}
+                </p>
               </div>
               <CheckCircle className="h-8 w-8 text-success" />
             </div>
@@ -126,8 +137,12 @@ export const ContributionsPage = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Aguardando Pagamento</p>
-                <p className="text-2xl font-bold text-warning">{formatCurrency(totalPending)}</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Aguardando Pagamento
+                </p>
+                <p className="text-2xl font-bold text-warning">
+                  {formatCurrency(totalPending)}
+                </p>
               </div>
               <Clock className="h-8 w-8 text-warning" />
             </div>
@@ -138,7 +153,9 @@ export const ContributionsPage = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total de Doações</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Total de Doações
+                </p>
                 <p className="text-2xl font-bold">{contributions.length}</p>
               </div>
               <HandHeart className="h-8 w-8 text-primary" />
@@ -150,13 +167,17 @@ export const ContributionsPage = () => {
       {/* Contributions List */}
       <div className="space-y-4">
         {contributions.map((contribution) => (
-          <Card key={contribution.id} className="gradient-card border-0 shadow-soft">
+          <Card
+            key={contribution.id}
+            className="gradient-card border-0 shadow-soft"
+          >
             <CardContent className="p-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold">
-                      {contribution.fundraiser?.title || 'Arrecadação não encontrada'}
+                      {contribution.fundraiser?.title ||
+                        "Arrecadação não encontrada"}
                     </h3>
                     {contribution.fundraiser?.public_slug && (
                       <Link
@@ -167,15 +188,22 @@ export const ContributionsPage = () => {
                       </Link>
                     )}
                   </div>
-                  
+
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span>Valor: <strong className="text-primary">{formatCurrency(contribution.amount)}</strong></span>
+                    <span>
+                      Valor:{" "}
+                      <strong className="text-primary">
+                        {formatCurrency(contribution.amount)}
+                      </strong>
+                    </span>
                     <span>•</span>
                     <span>{formatDate(contribution.created_at)}</span>
                     {!contribution.is_anonymous && (
                       <>
                         <span>•</span>
-                        <span className="text-primary">Doação identificada</span>
+                        <span className="text-primary">
+                          Doação identificada
+                        </span>
                       </>
                     )}
                   </div>
@@ -188,7 +216,7 @@ export const ContributionsPage = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                  {getStatusBadge(contribution.status)}
+                  {getStatusBadge(contribution.payment_status)}
                 </div>
               </div>
             </CardContent>
@@ -202,13 +230,14 @@ export const ContributionsPage = () => {
           <div className="space-y-4">
             <HandHeart className="h-12 w-12 text-primary mx-auto" />
             <div>
-              <h3 className="text-lg font-semibold mb-2">Continue Fazendo a Diferença!</h3>
+              <h3 className="text-lg font-semibold mb-2">
+                Continue Fazendo a Diferença!
+              </h3>
               <p className="text-muted-foreground mb-4">
-                Obrigado por contribuir para causas importantes. Cada doação faz a diferença na vida de alguém.
+                Obrigado por contribuir para causas importantes. Cada doação faz
+                a diferença na vida de alguém.
               </p>
-              <Button 
-                className="gradient-primary text-white shadow-medium hover:shadow-strong transition-smooth"
-              >
+              <Button className="gradient-primary text-white shadow-medium hover:shadow-strong transition-smooth">
                 <Link to="/app/explore">Explorar mais arrecadações.</Link>
               </Button>
             </div>

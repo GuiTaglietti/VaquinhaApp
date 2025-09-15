@@ -59,7 +59,6 @@ export const ExplorePage = () => {
       setTotalPages(data.totalPages);
       setTotal(data.total);
     } catch (error) {
-      // Evita quebrar a UI; a Toast já avisa
       console.error("Erro ao carregar arrecadações:", error);
       toast.error("Erro ao carregar arrecadações");
       setFundraisers([]);
@@ -96,8 +95,32 @@ export const ExplorePage = () => {
     setCurrentPage(1);
   };
 
+  // >>> Alterado: sempre envia para a página pública /p/:slug (pública e ideal para doação sem login)
   const handleViewFundraiser = (slug: string) => {
-    navigate(`/app/explore/${slug}`);
+    navigate(`/p/${slug}`);
+  };
+
+  // >>> Alterado: no botão "Contribuir", se não estiver logado envia para o público.
+  // (Se preferir, pode SEMPRE mandar para /p/:slug — funciona para logados e anônimos.)
+  const isAuthenticated = () => {
+    // Tenta detectar token salvo (ajuste as chaves caso seu projeto use outra)
+    return Boolean(
+      localStorage.getItem("access") ||
+        localStorage.getItem("accessToken") ||
+        localStorage.getItem("token")
+    );
+  };
+
+  const handleContribute = (slug: string) => {
+    if (!isAuthenticated()) {
+      // Pode incluir hash/param para ancorar no formulário de contribuição, se existir:
+      // window.location.href = `/p/${slug}#contribuir`;
+      navigate(`/p/${slug}`);
+      return;
+    }
+    // Usuário logado — pode manter no público também, mas se quiser a rota interna, troque abaixo:
+    // navigate(`/app/explore/${slug}`);
+    navigate(`/p/${slug}`);
   };
 
   const formatCurrency = (amount: number) => {
@@ -291,7 +314,7 @@ export const ExplorePage = () => {
                 <div className="p-6 pt-0">
                   <Button
                     className="w-full"
-                    onClick={() => handleViewFundraiser(fundraiser.public_slug)}
+                    onClick={() => handleContribute(fundraiser.public_slug)}
                   >
                     <Heart className="h-4 w-4 mr-2" />
                     Contribuir

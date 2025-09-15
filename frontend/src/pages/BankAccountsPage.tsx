@@ -57,6 +57,7 @@ export const BankAccountsPage = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<CreateBankAccountRequest>({
     bank_code: "",
+    bank_name: "",
     agency: "",
     account_number: "",
     account_type: "CHECKING",
@@ -67,6 +68,18 @@ export const BankAccountsPage = () => {
   useEffect(() => {
     loadAccounts();
   }, []);
+
+  const getBankMeta = (code?: string) => {
+    if (!code) return { code: "", name: "" };
+    const b = BRAZILIAN_BANKS.find((b) => b.code === code);
+    return { code, name: b?.name ?? "" };
+  };
+
+  const getBankLabel = (code: string, fallbackName?: string) => {
+    const m = getBankMeta(code);
+    const name = m.name || fallbackName || code;
+    return `${m.code} - ${name}`;
+  };
 
   const loadAccounts = async () => {
     try {
@@ -97,6 +110,7 @@ export const BankAccountsPage = () => {
       setEditingAccount(account);
       setFormData({
         bank_code: account.bank_code,
+        bank_name: account.bank_name || getBankMeta(account.bank_code).name,
         agency: account.agency,
         account_number: account.account_number,
         account_type: account.account_type,
@@ -202,9 +216,14 @@ export const BankAccountsPage = () => {
                 <Label htmlFor="bank_code">Banco</Label>
                 <Select
                   value={formData.bank_code}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, bank_code: value }))
-                  }
+                  onValueChange={(value) => {
+                    const meta = getBankMeta(value);
+                    setFormData((prev) => ({
+                      ...prev,
+                      bank_code: value,
+                      bank_name: meta.name,
+                    }));
+                  }}
                   required
                 >
                   <SelectTrigger>

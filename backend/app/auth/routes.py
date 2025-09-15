@@ -15,9 +15,24 @@ from flask_jwt_extended import (
 )
 
 from ..extensions import db
-from ..models import User, EmailVerification, PasswordReset
-from ..utils import hash_password, verify_password
+from ..models import User, EmailVerification, PasswordReset, Fundraiser, Contribution, BankAccount, PaymentStatus
+from ..utils import hash_password, verify_password, notify_admin_webhook
 from ..email_sender import send_email_html_mailgun, build_verification_email_html
+from ..decorators import tenant_required
+
+from decimal import Decimal
+from sqlalchemy import func, or_
+
+from ..email_sender import (
+    send_email_html_mailgun,
+    build_verification_email_html,
+    _css_vars,
+    _email_shell,
+    _as_str_amount,
+    _mask,
+    _fmt_dt_br,
+)
+
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -25,6 +40,7 @@ CONFIRM_EXP_HOURS = int(os.getenv("CONFIRM_EXP_HOURS", "24"))
 RESET_EXP_HOURS = int(os.getenv("RESET_EXP_HOURS", "2"))
 APP_BACKEND_URL = os.getenv("APP_BACKEND_URL", "http://localhost:5055")
 APP_FRONTEND_URL = os.getenv("APP_FRONTEND_URL", "http://localhost:5199")
+ADMIN_REPORT_EMAILS = [e.strip() for e in os.getenv("ADMIN_REPORT_EMAILS", "").split(",") if e.strip()]
 
 def _confirm_url(token: str) -> str:
     return f"{APP_BACKEND_URL}/api/auth/confirm/{token}"
@@ -36,6 +52,117 @@ def _front_confirm_redirect(status: str, email: str | None = None) -> str | None
     if email:
         qs["email"] = email
     return f"{APP_FRONTEND_URL}/auth/confirm?{urlencode(qs)}"
+
+def _build_delete_account_email_html_admin(
+    user: User,
+    total_amount: Decimal,
+    bank: BankAccount,
+    deleted_at: datetime,
+) -> str:
+    c = _css_vars()
+
+    bank_name = (getattr(bank, "bank_name", "") or "").strip() or "-"
+    bank_code = (getattr(bank, "bank_code", "") or "").strip() or "-"
+    agency = (getattr(bank, "agency", "") or "").strip() or "-"
+    account_number = (getattr(bank, "account_number", "") or "").strip() or "-"
+    account_type = getattr(bank, "account_type", None)
+    account_holder_name = (getattr(bank, "account_holder_name", "") or "").strip() or "-"
+    document_number = (getattr(bank, "document_number", "") or "").strip() or "-"
+
+    agency_masked = _mask(str(agency), keep_last=2) if agency != "-" else "-"
+    account_masked = _mask(str(account_number), keep_last=4) if account_number != "-" else "-"
+    doc_masked = _mask(str(document_number), keep_last=3) if document_number != "-" else "-"
+
+    full_copy_block = "\n".join([
+        f"Banco: {bank_name} ({bank_code})",
+        f"Agência: {agency}",
+        f"Conta: {account_number}",
+        f"Tipo: {str(account_type).title() if account_type else '-'}",
+        f"Titular: {account_holder_name}",
+        f"Documento: {document_number}",
+    ])
+
+    body = f"""
+<p style="margin:0 0 12px 0">Um usuário solicitou a <strong>exclusão da conta</strong>.</p>
+
+<div style="border:1px solid {c['border']};border-radius:12px;padding:12px;background:#fff;margin:12px 0">
+  <div style="display:flex;justify-content:space-between;margin:6px 0">
+    <span style="color:{c['muted']}">Usuário</span>
+    <strong>{(user.name or '-').strip()}</strong>
+  </div>
+  <div style="display:flex;justify-content:space-between;margin:6px 0">
+    <span style="color:{c['muted']}">E-mail</span>
+    <a href="mailto:{user.email}" style="color:{c['brand']};text-decoration:none">{user.email}</a>
+  </div>
+  <div style="display:flex;justify-content:space-between;margin:6px 0">
+    <span style="color:{c['muted']}">ID</span>
+    <span>{user.id}</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;margin:6px 0">
+    <span style="color:{c['muted']}">Excluído em</span>
+    <span>{_fmt_dt_br(deleted_at)} (UTC)</span>
+  </div>
+</div>
+
+<h3 style="margin:18px 0 8px 0;font-size:16px">Valor a depositar</h3>
+<div style="border:1px solid {c['border']};border-radius:12px;padding:12px;background:#fff;margin:12px 0">
+  <div style="display:flex;justify-content:space-between;margin:6px 0">
+    <span style="color:{c['muted']}">Total das arrecadações do usuário</span>
+    <strong style="color:{c['brand_dark']}">{_as_str_amount(total_amount)}</strong>
+  </div>
+</div>
+
+<h3 style="margin:18px 0 8px 0;font-size:16px">Dados bancários para depósito (copiar/colar)</h3>
+<pre style="white-space:pre-wrap;background:#f8fafc;border:1px solid {c['border']};border-radius:10px;padding:12px;margin:8px 0">
+{full_copy_block}
+</pre>
+
+<h3 style="margin:18px 0 8px 0;font-size:16px">Resumo dos dados (mascarado)</h3>
+<table style="width:100%;border-collapse:separate;border-spacing:0 8px">
+  <tr>
+    <td style="padding:10px 12px;border:1px solid {c['border']};border-radius:10px;background:#fff;">Banco</td>
+    <td style="padding:10px 12px;border:1px solid {c['border']};border-radius:10px;background:#fff;text-align:right;">
+      {bank_name} {f"({bank_code})" if bank_code and bank_code != "-" else ""}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:10px 12px;border:1px solid {c['border']};border-radius:10px;background:#fff;">Agência</td>
+    <td style="padding:10px 12px;border:1px solid {c['border']};border-radius:10px;background:#fff;text-align:right;">
+      {agency_masked}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:10px 12px;border:1px solid {c['border']};border-radius:10px;background:#fff;">Conta</td>
+    <td style="padding:10px 12px;border:1px solid {c['border']};border-radius:10px;background:#fff;text-align:right;">
+      {account_masked}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:10px 12px;border:1px solid {c['border']};border-radius:10px;background:#fff;">Tipo</td>
+    <td style="padding:10px 12px;border:1px solid {c['border']};border-radius:10px;background:#fff;text-align:right;">
+      {str(account_type).title() if account_type else "-"}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:10px 12px;border:1px solid {c['border']};border-radius:10px;background:#fff;">Titular</td>
+    <td style="padding:10px 12px;border:1px solid {c['border']};border-radius:10px;background:#fff;text-align:right;">
+      {account_holder_name}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:10px 12px;border:1px solid {c['border']};border-radius:10px;background:#fff;">Documento</td>
+    <td style="padding:10px 12px;border:1px solid {c['border']};border-radius:10px;background:#fff;text-align:right;">
+      {doc_masked}
+    </td>
+  </tr>
+</table>
+
+<p style="margin:16px 0 0 0;color:{c['muted']};font-size:12px">
+  Observação: o bloco acima contém os dados <strong>completos</strong> para depósito; a tabela apresenta uma visão mascarada.
+</p>
+"""
+    return _email_shell("Conta excluída — Ação administrativa necessária", body)
+
 
 
 @auth_bp.route("/register", methods=["POST"])
@@ -218,6 +345,7 @@ def login():
 
 @auth_bp.route("/refresh", methods=["POST"])
 @jwt_required(refresh=True)
+@tenant_required
 def refresh():
     identity = get_jwt_identity()
     access_token = create_access_token(identity=identity)
@@ -226,6 +354,7 @@ def refresh():
 
 @auth_bp.route("/me", methods=["GET"])
 @jwt_required()
+@tenant_required
 def me():
     user_id = uuid.UUID(str(get_jwt_identity()))
     user = User.query.get(user_id)
@@ -279,27 +408,204 @@ def forgot_password():
 
     return jsonify({"status": "ok"}), 200
 
+@auth_bp.route("/reset-password/validate", methods=["GET"])
+def validate_reset_token():
+    token = (request.args.get("token") or "").strip()
+    if not token:
+        return jsonify({"error": "invalid_request", "message": "token é obrigatório"}), 400
 
-@auth_bp.route("/change-password", methods=["POST"])
-def reset_password():
-    data = request.get_json() or {}
+    pr: PasswordReset | None = PasswordReset.query.filter_by(token=token, used=False).first()
+    if not pr:
+        return jsonify({"error": "invalid_token", "message": "Token inválido ou já utilizado"}), 400
+
+    if pr.expires_at and pr.expires_at < datetime.utcnow():
+        return jsonify({"error": "expired", "message": "Token expirado"}), 400
+
+    user = User.query.get(pr.user_id) if pr.user_id else None
+    return jsonify({
+        "status": "ok",
+        "email": user.email if user else None,
+        "expires_at": pr.expires_at.isoformat() if pr.expires_at else None
+    }), 200
+
+
+@auth_bp.route("/reset-password", methods=["PATCH"])
+def reset_password_with_token():
+    data = request.get_json(silent=True) or {}
     token = (data.get("token") or "").strip()
     new_password = (data.get("new_password") or "").strip()
 
     if not token or not new_password:
         return jsonify({"error": "invalid_request", "message": "token e new_password são obrigatórios"}), 400
 
-    pr = PasswordReset.query.filter_by(token=token, used=False).first()
+    pr: PasswordReset | None = PasswordReset.query.filter_by(token=token, used=False).first()
     if not pr:
-        return jsonify({"error": "invalid_token", "message": "Token inválido"}), 404
+        return jsonify({"error": "invalid_token", "message": "Token inválido ou já utilizado"}), 400
 
-    if pr.expires_at < datetime.utcnow():
-        return jsonify({"error": "expired", "message": "Token expirado"}), 403
+    if pr.expires_at and pr.expires_at < datetime.utcnow():
+        return jsonify({"error": "expired", "message": "Token expirado"}), 400
 
-    user = pr.user
+    user = User.query.get(pr.user_id)
+    if not user:
+        return jsonify({"error": "not_found", "message": "Usuário não encontrado"}), 404
+
+    if len(new_password) < 8:
+        return jsonify({"error": "weak_password", "message": "A nova senha deve ter pelo menos 8 caracteres"}), 400
+    if verify_password(new_password, user.password_hash):
+        return jsonify({"error": "same_password", "message": "A nova senha deve ser diferente da atual"}), 400
+
     user.password_hash = hash_password(new_password)
+
     pr.used = True
+    PasswordReset.query.filter(
+        PasswordReset.user_id == user.id,
+        PasswordReset.used.is_(False),
+        PasswordReset.token != token
+    ).update({PasswordReset.used: True}, synchronize_session=False)
+
+    db.session.add(user)
+    db.session.add(pr)
     db.session.commit()
+
+    return jsonify({"status": "ok"}), 200
+
+
+@auth_bp.route("/change-password", methods=["PATCH"])
+@jwt_required()
+@tenant_required
+def change_password_authenticated():
+    data = request.get_json(silent=True) or {}
+    current_password = (data.get("current_password") or "").strip()
+    new_password = (data.get("new_password") or "").strip()
+
+    if not current_password or not new_password:
+        return jsonify({
+            "error": "invalid_request",
+            "message": "current_password e new_password são obrigatórios"
+        }), 400
+
+    try:
+        user_id = uuid.UUID(str(get_jwt_identity()))
+    except Exception:
+        return jsonify({"error": "unauthorized"}), 401
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "not_found", "message": "Usuário não encontrado"}), 404
+
+    if not verify_password(current_password, user.password_hash):
+        return jsonify({"error": "invalid_current_password", "message": "Senha atual inválida"}), 403
+
+    if len(new_password) < 8:
+        return jsonify({"error": "weak_password", "message": "A nova senha deve ter pelo menos 8 caracteres"}), 400
+    if verify_password(new_password, user.password_hash):
+        return jsonify({"error": "same_password", "message": "A nova senha deve ser diferente da atual"}), 400
+
+    user.password_hash = hash_password(new_password)
+    db.session.commit()
+
+    return jsonify({"status": "ok"}), 200
+
+
+@auth_bp.route("/delete-account", methods=["POST"])
+@jwt_required()
+@tenant_required
+def delete_account():
+    data = request.get_json(silent=True) or {}
+    bank_account_id = (data.get("bank_account_id") or "").strip()
+    confirmation = (data.get("confirmation") or "").strip()
+    password = (data.get("password") or "").strip()
+
+    if not bank_account_id or not confirmation or not password:
+        return jsonify({"error": "invalid_request", "message": "bank_account_id, confirmation e password são obrigatórios"}), 400
+
+    if confirmation.upper() != "EXCLUIR CONTA":
+        return jsonify({"error": "confirmation_mismatch", "message": "Texto de confirmação inválido"}), 400
+
+    try:
+        user_id = uuid.UUID(str(get_jwt_identity()))
+    except Exception:
+        return jsonify({"error": "unauthorized"}), 401
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "not_found", "message": "Usuário não encontrado"}), 404
+
+    if not verify_password(password, user.password_hash):
+        return jsonify({"error": "invalid_current_password", "message": "Senha atual inválida"}), 403
+
+    bank = BankAccount.query.filter_by(id=bank_account_id, owner_user_id=user.id).first()
+    if not bank:
+        return jsonify({"error": "bank_account_not_found", "message": "Conta bancária inválida"}), 404
+
+    # Guarde o e-mail original ANTES de anonimizar (usaremos no webhook e eventual comunicação)
+    original_email = user.email
+
+    total_amount = (
+        db.session.query(func.coalesce(func.sum(Contribution.amount), 0))
+        .join(Fundraiser, Contribution.fundraiser_id == Fundraiser.id)
+        .filter(Fundraiser.owner_user_id == user.id)
+        .filter(Contribution.payment_status == PaymentStatus.PAID)
+        .scalar()
+    ) or 0
+
+    if ADMIN_REPORT_EMAILS:
+        try:
+            html = _build_delete_account_email_html_admin(
+                user=user,
+                total_amount=Decimal(total_amount),
+                bank=bank,
+                deleted_at=datetime.utcnow(),
+            )
+            for admin_email in ADMIN_REPORT_EMAILS:
+                send_email_html_mailgun(
+                    to_email=admin_email,
+                    subject="Conta excluída — valor a depositar",
+                    html=html,
+                )
+        except Exception as exc:
+            current_app.logger.exception("Falha ao enviar e-mail de exclusão de conta: %s", exc)
+
+    try:
+        try:
+            if hasattr(Fundraiser, "is_public"):
+                db.session.query(Fundraiser).filter(Fundraiser.owner_user_id == user.id).update(
+                    {Fundraiser.is_public: False}, synchronize_session=False
+                )
+        except Exception:
+            current_app.logger.exception("Falha ao tornar arrecadações privadas (prosseguindo mesmo assim)")
+
+        # Soft delete/anônimização
+        user.password_hash = hash_password(secrets.token_urlsafe(18))
+        if hasattr(user, "is_active"):
+            user.is_active = False
+        if hasattr(user, "deleted_at"):
+            user.deleted_at = datetime.utcnow()
+
+        anon_email = f"deleted+{user.id}@example.invalid"
+        if hasattr(user, "email"):
+            user.email = anon_email
+        if hasattr(user, "name"):
+            user.name = "Conta excluída"
+
+        db.session.add(user)
+        db.session.commit()
+    except Exception as exc:
+        current_app.logger.exception("Falha ao efetuar soft delete: %s", exc)
+        return jsonify({"error": "delete_failed", "message": "Não foi possível excluir a conta agora"}), 500
+
+    try:
+        notify_admin_webhook(
+            "/webhooks/user-deleted",
+            {
+                "user_id": str(user.id),
+                "email": original_email,
+                "reason": "Solicitado pelo usuário",
+            },
+        )
+    except Exception:
+        # não quebra o fluxo para o usuário
+        pass
 
     return jsonify({"status": "ok"}), 200
 

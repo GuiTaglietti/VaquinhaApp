@@ -11,6 +11,7 @@ import {
   FileSearch,
   MoreVertical,
   Filter,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,11 @@ import { MoneyProgressBar } from "@/components/ui/money-progress-bar";
 import { fundraisersService } from "@/services/fundraisers";
 import { Fundraiser } from "@/types";
 import { toast } from "react-hot-toast";
+import { FundraiserStatusModal } from "@/components/ui/fundraiser-status-modal";
+
+// Util: normaliza status para UPPERCASE
+const normStatus = (s?: string) =>
+  (s || "").toUpperCase() as "ACTIVE" | "PAUSED" | "FINISHED" | string;
 
 export const FundraisersListPage = () => {
   const [fundraisers, setFundraisers] = useState<Fundraiser[]>([]);
@@ -74,15 +80,18 @@ export const FundraisersListPage = () => {
     let filtered = fundraisers;
 
     if (searchQuery) {
+      const q = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (f) =>
-          f.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          f.description?.toLowerCase().includes(searchQuery.toLowerCase())
+          f.title.toLowerCase().includes(q) ||
+          (f.description || "").toLowerCase().includes(q)
       );
     }
 
     if (statusFilter !== "all") {
-      filtered = filtered.filter((f) => f.status === statusFilter);
+      filtered = filtered.filter(
+        (f) => normStatus(f.status) === normStatus(statusFilter)
+      );
     }
 
     setFilteredFundraisers(filtered);
@@ -92,8 +101,13 @@ export const FundraisersListPage = () => {
     try {
       setIsLoading(true);
       const data = await fundraisersService.getAll();
-      setFundraisers(data);
-      setFilteredFundraisers(data);
+      // normaliza status para garantir filtro + badges
+      const normalized = (data || []).map((f: Fundraiser) => ({
+        ...f,
+        status: normStatus(f.status),
+      }));
+      setFundraisers(normalized);
+      setFilteredFundraisers(normalized);
     } catch (error) {
       console.error("Error fetching fundraisers:", error);
     } finally {
@@ -130,7 +144,6 @@ export const FundraisersListPage = () => {
     try {
       const { audit_token } = await fundraisersService.generateAuditToken(id);
       const auditUrl = `${window.location.origin}/a/${audit_token}`;
-
       await navigator.clipboard.writeText(auditUrl);
       toast.success("Link de auditoria copiado para a área de transferência!");
     } catch (error) {
@@ -144,27 +157,25 @@ export const FundraisersListPage = () => {
     toast.success("Link público copiado para a área de transferência!");
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status?: string) => {
+    const key = normStatus(status);
     const variants = {
       ACTIVE: {
-        variant: "default" as const,
         label: "Ativa",
         className: "bg-success text-success-foreground",
       },
       PAUSED: {
-        variant: "secondary" as const,
         label: "Pausada",
         className: "bg-warning text-warning-foreground",
       },
       FINISHED: {
-        variant: "destructive" as const,
         label: "Finalizada",
-        className: "",
+        className: "bg-destructive text-destructive-foreground",
       },
-    };
+    } as const;
 
-    const config = variants[status as keyof typeof variants] || variants.ACTIVE;
-    return <Badge className={config.className}>{config.label}</Badge>;
+    const cfg = variants[key as keyof typeof variants] || variants.ACTIVE;
+    return <Badge className={cfg.className}>{cfg.label}</Badge>;
   };
 
   const formatCurrency = (value: number) => {
@@ -176,6 +187,16 @@ export const FundraisersListPage = () => {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("pt-BR");
+  };
+
+  // callback depois que o modal alterar o status com sucesso
+  const onStatusChange = (id: string, newStatus: string) => {
+    setFundraisers((prev) =>
+      prev.map((f) =>
+        f.id === id ? { ...f, status: normStatus(newStatus) } : f
+      )
+    );
+    toast.success("Status da vaquinha atualizado com sucesso!");
   };
 
   if (isLoading) {
@@ -224,7 +245,10 @@ export const FundraisersListPage = () => {
                     className="pl-10"
                   />
                 </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => setStatusFilter(v)}
+                >
                   <SelectTrigger className="w-full sm:w-48">
                     <Filter className="w-4 h-4 mr-2" />
                     <SelectValue placeholder="Filtrar por status" />
@@ -240,7 +264,7 @@ export const FundraisersListPage = () => {
             </CardContent>
           </Card>
 
-          {/* Table/Cards */}
+          {/* Mobile Cards */}
           <div className="grid gap-4 md:hidden">
             {filteredFundraisers.map((fundraiser) => (
               <Card
@@ -289,6 +313,24 @@ export const FundraisersListPage = () => {
                           Editar
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
+
+                        {/* Alterar status via modal */}
+                        <FundraiserStatusModal
+                          fundraiserId={fundraiser.id}
+                          currentStatus={normStatus(fundraiser.status)}
+                          onStatusChange={(s) =>
+                            onStatusChange(fundraiser.id, s)
+                          }
+                          trigger={
+                            <DropdownMenuItem
+                              onSelect={(e) => e.preventDefault()}
+                            >
+                              <AlertTriangle className="mr-2 h-4 w-4" />
+                              Alterar status
+                            </DropdownMenuItem>
+                          }
+                        />
+
                         <DropdownMenuItem
                           onClick={() => handleTogglePublic(fundraiser)}
                         >
@@ -329,8 +371,8 @@ export const FundraisersListPage = () => {
                                 Confirmar exclusão
                               </AlertDialogTitle>
                               <AlertDialogDescription>
-                                Esta ação não pode ser desfeita. A arrecadação será
-                                permanentemente excluída.
+                                Esta ação não pode ser desfeita. A arrecadação
+                                será permanentemente excluída.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
@@ -443,6 +485,24 @@ export const FundraisersListPage = () => {
                             Editar
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
+
+                          {/* Alterar status via modal */}
+                          <FundraiserStatusModal
+                            fundraiserId={fundraiser.id}
+                            currentStatus={normStatus(fundraiser.status)}
+                            onStatusChange={(s) =>
+                              onStatusChange(fundraiser.id, s)
+                            }
+                            trigger={
+                              <DropdownMenuItem
+                                onSelect={(e) => e.preventDefault()}
+                              >
+                                <AlertTriangle className="mr-2 h-4 w-4" />
+                                Alterar status
+                              </DropdownMenuItem>
+                            }
+                          />
+
                           <DropdownMenuItem
                             onClick={() => handleTogglePublic(fundraiser)}
                           >

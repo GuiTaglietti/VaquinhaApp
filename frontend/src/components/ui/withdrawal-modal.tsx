@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { BankAccount } from "@/types/profile";
 import { withdrawalsService } from "@/services/withdrawals";
 import { toast } from "react-hot-toast";
+import { BRAZILIAN_BANKS } from "@/types/profile";
 
 const withdrawalSchema = z.object({
   bank_account_id: z.string().min(1, "Selecione uma conta bancária"),
@@ -72,6 +73,12 @@ export const WithdrawalModal = ({
       style: "currency",
       currency: "BRL",
     }).format(value);
+  };
+
+  const bankLabelByCode = (code?: string, fallbackName?: string) => {
+    if (!code) return fallbackName ?? "";
+    const meta = BRAZILIAN_BANKS.find((b) => b.code === code);
+    return `${code} - ${meta?.name ?? fallbackName ?? code}`;
   };
 
   const onSubmit = async (data: WithdrawalFormData) => {
@@ -130,8 +137,11 @@ export const WithdrawalModal = ({
                     <SelectContent>
                       {bankAccounts.map((account) => (
                         <SelectItem key={account.id} value={account.id}>
-                          {account.bank_name} - {account.agency}/
-                          {account.account_number}
+                          {bankLabelByCode(
+                            account.bank_code,
+                            account.bank_name
+                          )}{" "}
+                          — {account.agency}/{account.account_number}
                           {account.is_default && " (Padrão)"}
                         </SelectItem>
                       ))}
