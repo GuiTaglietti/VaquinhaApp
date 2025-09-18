@@ -13,3 +13,5 @@ structlog==23.1.0
 requests==2.31.0
 Pillow==10.4.0
 reportlab>=4.2,<5
+bleach==6.1.0
+markdown==3.9

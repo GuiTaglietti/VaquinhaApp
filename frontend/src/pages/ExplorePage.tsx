@@ -25,6 +25,30 @@ import { exploreService } from "@/services/explore";
 import { PublicFundraiserListItem, BRAZILIAN_STATES } from "@/types";
 import { toast } from "react-hot-toast";
 
+const RAW_PUBLIC =
+  (import.meta.env.VITE_PUBLIC_SITE_URL as string) ||
+  (import.meta.env.VITE_PUBLIC_FRONTEND_URL as string) ||
+  window.location.origin;
+
+const PUBLIC_BASE = (() => {
+  try {
+    const u = new URL(RAW_PUBLIC, window.location.origin);
+    // remove /app do final, se existir
+    u.pathname = u.pathname.replace(/\/app\/?$/, "");
+    return (u.origin + u.pathname).replace(/\/$/, "");
+  } catch {
+    return window.location.origin;
+  }
+})();
+
+const TOKEN_KEYS = (
+  (import.meta.env.VITE_AUTH_TOKEN_KEYS as string) ||
+  "access,accessToken,access_token,token,jwt,auth,authState"
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 export const ExplorePage = () => {
   const navigate = useNavigate();
   const [fundraisers, setFundraisers] = useState<PublicFundraiserListItem[]>(
@@ -95,32 +119,85 @@ export const ExplorePage = () => {
     setCurrentPage(1);
   };
 
-  // >>> Alterado: sempre envia para a página pública /p/:slug (pública e ideal para doação sem login)
-  const handleViewFundraiser = (slug: string) => {
-    navigate(`/p/${slug}`);
+  const goToFundraiser = (slug: string) => {
+    if (isAuthenticated()) {
+      navigate(`/app/explore/${slug}`);
+    } else {
+      window.location.href = `${PUBLIC_BASE}/p/${slug}`;
+    }
   };
 
-  // >>> Alterado: no botão "Contribuir", se não estiver logado envia para o público.
-  // (Se preferir, pode SEMPRE mandar para /p/:slug — funciona para logados e anônimos.)
-  const isAuthenticated = () => {
-    // Tenta detectar token salvo (ajuste as chaves caso seu projeto use outra)
-    return Boolean(
-      localStorage.getItem("access") ||
-        localStorage.getItem("accessToken") ||
-        localStorage.getItem("token")
-    );
+  const handleViewFundraiser = (slug: string) => {
+    goToFundraiser(slug);
   };
+
+  function findStoredToken(): string | null {
+    for (const store of [localStorage, sessionStorage]) {
+      for (const key of TOKEN_KEYS) {
+        const raw = store.getItem(key);
+        if (!raw) continue;
+        try {
+          const obj = JSON.parse(raw);
+          const nested =
+            obj?.access_token || obj?.accessToken || obj?.token || obj?.jwt;
+          if (typeof nested === "string" && nested) return nested;
+        } catch {
+          /* não é JSON */
+        }
+        return raw;
+      }
+    }
+
+    const cookieStr = typeof document !== "undefined" ? document.cookie : "";
+    for (const key of TOKEN_KEYS) {
+      const m = cookieStr.match(new RegExp(`(?:^|; )${key}=([^;]+)`));
+      if (m?.[1]) return decodeURIComponent(m[1]);
+    }
+    return null;
+  }
+
+  function extractBearer(raw: string): string {
+    const t = raw.trim();
+    if (/^Bearer\s+/i.test(t)) return t.replace(/^Bearer\s+/i, "").trim();
+    return t;
+  }
+
+  function parseJwtPayload(token: string): any | null {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    try {
+      const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const json = atob(base64);
+      return JSON.parse(json);
+    } catch {
+      return null;
+    }
+  }
+
+  function isValidJwt(token: string): boolean {
+    const p = parseJwtPayload(token);
+    if (!p) return false;
+    if (p.sub === "admin") return false;
+
+    const now = Math.floor(Date.now() / 1000);
+    if (typeof p.exp !== "number" || p.exp <= now + 30) return false;
+
+    const uuidLike = /^[0-9a-fA-F-]{36}$/;
+    if (uuidLike.test(String(p.sub || ""))) return true;
+    if (typeof p.email === "string" && p.email.includes("@")) return true;
+
+    return true;
+  }
+
+  function isAuthenticated(): boolean {
+    const stored = findStoredToken();
+    if (!stored) return false;
+    const bearer = extractBearer(stored);
+    return isValidJwt(bearer);
+  }
 
   const handleContribute = (slug: string) => {
-    if (!isAuthenticated()) {
-      // Pode incluir hash/param para ancorar no formulário de contribuição, se existir:
-      // window.location.href = `/p/${slug}#contribuir`;
-      navigate(`/p/${slug}`);
-      return;
-    }
-    // Usuário logado — pode manter no público também, mas se quiser a rota interna, troque abaixo:
-    // navigate(`/app/explore/${slug}`);
-    navigate(`/p/${slug}`);
+    goToFundraiser(slug);
   };
 
   const formatCurrency = (amount: number) => {
@@ -134,7 +211,6 @@ export const ExplorePage = () => {
     return Math.min((current / goal) * 100, 100);
   };
 
-  // Para o Select controlado: quando estado for "", mostramos "all" no value
   const selectStateValue = selectedState === "" ? "all" : selectedState;
 
   return (
@@ -263,9 +339,15 @@ export const ExplorePage = () => {
                   <CardContent className="p-6">
                     <div className="space-y-3">
                       <div>
-                        <h3 className="font-semibold line-clamp-2">
+                        <h3 className="font-semibold line-clamp-2 flex items-center gap-2">
                           {fundraiser.title}
+                          {fundraiser.status === "finished" && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                              Encerrada
+                            </span>
+                          )}
                         </h3>
+
                         {fundraiser.description && (
                           <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
                             {fundraiser.description}
@@ -314,10 +396,13 @@ export const ExplorePage = () => {
                 <div className="p-6 pt-0">
                   <Button
                     className="w-full"
+                    disabled={!fundraiser.can_contribute}
                     onClick={() => handleContribute(fundraiser.public_slug)}
                   >
                     <Heart className="h-4 w-4 mr-2" />
-                    Contribuir
+                    {fundraiser.can_contribute
+                      ? "Contribuir"
+                      : "Contribuições encerradas"}
                   </Button>
                 </div>
               </Card>

@@ -4,11 +4,18 @@ from datetime import datetime
 from enum import Enum as PyEnum
 from sqlalchemy import (
     Column, String, DateTime, Boolean, Numeric, ForeignKey, Integer,
-    UniqueConstraint, Enum as SAEnum
+    UniqueConstraint, Text, Enum as SAEnum
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from .extensions import db
+
+class PixKeyType(PyEnum):
+    CPF = "CPF"
+    CNPJ = "CNPJ"
+    EMAIL = "EMAIL"
+    PHONE = "PHONE"
+    EVP = "EVP"
 
 class User(db.Model):
     __tablename__ = "users"
@@ -110,6 +117,9 @@ class BankAccount(db.Model):
     account_holder_name = Column(String(255), nullable=False)
     document_number = Column(String(32), nullable=False)
 
+    pix_key = Column(Text, nullable=True)
+    pix_key_type = Column(String(16), nullable=True)
+
     is_default = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -157,6 +167,9 @@ class Withdrawal(db.Model):
     status = Column(SAEnum(WithdrawalStatus, name="withdrawal_status"), nullable=False, default=WithdrawalStatus.PENDING)
     requested_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     processed_at = Column(DateTime, nullable=True)
+
+    nf_pdf_url = Column(Text, nullable=True)
+    nf_uploaded_at = Column(DateTime(timezone=True), nullable=True)
 
     fundraiser = relationship("Fundraiser")
     bank_account = relationship("BankAccount")
@@ -231,3 +244,36 @@ class PasswordReset(db.Model):
     def __repr__(self) -> str:
         return f"<PasswordReset {self.id} user={self.user_id} used={self.used}>"
 
+class LegalDoc(db.Model):
+    __tablename__ = "legal_docs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    key = Column(String(32), nullable=False, index=True)
+    locale = Column(String(16), nullable=False, default="pt-BR")
+    title = Column(String(255), nullable=False)
+    version = Column(String(32), nullable=False)
+    content_html = Column(Text, nullable=True)
+    content_md = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    published_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("key", "locale", "version", name="uq_legal_docs_key_locale_version"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<LegalDoc {self.id} {self.key} {self.locale} v{self.version}>"
+
+class LegalAcceptance(db.Model):
+    __tablename__ = "legal_acceptances"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    doc_key = Column(String(32), nullable=False)
+    version = Column(String(32), nullable=False)
+    locale = Column(String(16), nullable=False, default="pt-BR")
+    accepted_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User")
+
+    def __repr__(self) -> str:
+        return f"<LegalAcceptance {self.id} user={self.user_id} doc={self.doc_key} v{self.version}>"

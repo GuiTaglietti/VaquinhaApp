@@ -65,9 +65,9 @@ def download_invoice(uuid):
         c.drawString(25 * mm, y, str(txt))
         y -= 7 * mm
 
-    c.setTitle(f"Nota Fiscal {inv.id}")
+    c.setTitle(f"Comprovante de Saque {inv.id}")
 
-    line("Velório Solidário — Nota Fiscal (serviços)", 14, bold=True)
+    line("Velório Solidário — Comprovante de Saque", 14, bold=True)
     line(f"Número: {inv.id}", 10)
     line(f"Emissão: {issued_txt} (UTC)", 10)
 
@@ -85,7 +85,7 @@ def download_invoice(uuid):
     c.save()
     buf.seek(0)
 
-    filename = f"nota_fiscal_{inv.id}.pdf"
+    filename = f"comprovante_saque_{inv.id}.pdf"
     resp = send_file(
         buf,
         mimetype="application/pdf",

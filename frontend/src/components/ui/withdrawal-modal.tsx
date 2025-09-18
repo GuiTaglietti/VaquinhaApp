@@ -32,9 +32,10 @@ import { withdrawalsService } from "@/services/withdrawals";
 import { toast } from "react-hot-toast";
 import { BRAZILIAN_BANKS } from "@/types/profile";
 
+// schema base (sem availableBalance aqui; checamos no submit)
 const withdrawalSchema = z.object({
   bank_account_id: z.string().min(1, "Selecione uma conta bancária"),
-  amount: z.number().min(0.01, "Valor deve ser maior que R$ 0,00"),
+  amount: z.number().min(50, "Valor mínimo de saque é R$ 50,00 (bruto)"),
   description: z.string().optional(),
 });
 
@@ -44,9 +45,10 @@ interface WithdrawalModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   fundraiserId: string;
-  availableBalance: number;
+  availableBalance: number; // saldo líquido disponível (antes da taxa do próximo saque)
   bankAccounts: BankAccount[];
   onSuccess: () => void;
+  withdrawFeeFixed?: number; // taxa fixa por saque (default R$ 4,50)
 }
 
 export const WithdrawalModal = ({
@@ -56,6 +58,7 @@ export const WithdrawalModal = ({
   availableBalance,
   bankAccounts,
   onSuccess,
+  withdrawFeeFixed = 4.5,
 }: WithdrawalModalProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -66,14 +69,18 @@ export const WithdrawalModal = ({
       amount: 0,
       description: "",
     },
+    mode: "onChange",
   });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("pt-BR", {
+  const { watch } = form;
+  const gross = Number(watch("amount") || 0); // valor que será descontado do saldo
+  const net = Math.max(0, Number((gross - withdrawFeeFixed).toFixed(2))); // valor líquido que o usuário recebe
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
-    }).format(value);
-  };
+    }).format(isFinite(value) ? value : 0);
 
   const bankLabelByCode = (code?: string, fallbackName?: string) => {
     if (!code) return fallbackName ?? "";
@@ -82,8 +89,13 @@ export const WithdrawalModal = ({
   };
 
   const onSubmit = async (data: WithdrawalFormData) => {
+    // regras de negócio no FE (espelha o BE):
+    if (data.amount < 50) {
+      toast.error("Valor mínimo de saque é R$ 50,00 (bruto).");
+      return;
+    }
     if (data.amount > availableBalance) {
-      toast.error("Valor solicitado maior que o saldo disponível");
+      toast.error("Valor solicitado maior que o saldo disponível.");
       return;
     }
 
@@ -92,7 +104,7 @@ export const WithdrawalModal = ({
       await withdrawalsService.requestWithdrawal({
         fundraiser_id: fundraiserId,
         bank_account_id: data.bank_account_id,
-        amount: data.amount,
+        amount: data.amount, // BE trata como BRUTO e desconta a taxa fixa
         description: data.description,
       });
 
@@ -107,13 +119,21 @@ export const WithdrawalModal = ({
     }
   };
 
+  const submitDisabled =
+    isSubmitting ||
+    gross < 50 ||
+    gross > availableBalance ||
+    !form.formState.isValid;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>Solicitar Saque</DialogTitle>
           <DialogDescription>
-            Saldo disponível: {formatCurrency(availableBalance)}
+            Saldo disponível: <b>{formatCurrency(availableBalance)}</b>
+            <br />
+            Taxa fixa por saque: <b>{formatCurrency(withdrawFeeFixed)}</b>
           </DialogDescription>
         </DialogHeader>
 
@@ -157,13 +177,15 @@ export const WithdrawalModal = ({
               name="amount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Valor do Saque</FormLabel>
+                  <FormLabel>
+                    Valor do Saque (bruto, descontado do saldo)
+                  </FormLabel>
                   <FormControl>
                     <Input
                       {...field}
                       type="number"
                       step="0.01"
-                      min="0.01"
+                      min={50}
                       max={availableBalance}
                       placeholder="0,00"
                       onChange={(e) =>
@@ -172,6 +194,12 @@ export const WithdrawalModal = ({
                     />
                   </FormControl>
                   <FormMessage />
+                  <div className="mt-2 text-sm text-muted-foreground">
+                    Você receberá: <b>{formatCurrency(net)}</b> (valor
+                    solicitado − {formatCurrency(withdrawFeeFixed)} de taxa
+                    fixa) <br />
+                    Será descontado do saldo: <b>{formatCurrency(gross)}</b>
+                  </div>
                 </FormItem>
               )}
             />
@@ -203,7 +231,11 @@ export const WithdrawalModal = ({
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isSubmitting} className="flex-1">
+              <Button
+                type="submit"
+                disabled={submitDisabled}
+                className="flex-1"
+              >
                 {isSubmitting ? "Processando..." : "Solicitar Saque"}
               </Button>
             </div>

@@ -1,10 +1,7 @@
-# app/explore/routes.py
 from flask import Blueprint, jsonify, request
 from sqlalchemy import or_, func
-from flask_jwt_extended import jwt_required
-from ..models import Fundraiser
+from ..models import Fundraiser, FundraiserStatus
 from ..extensions import db
-from ..decorators import tenant_required
 
 explore_bp = Blueprint("explore", __name__)
 
@@ -20,6 +17,9 @@ def _serialize_public_item(f: Fundraiser):
         "state": f.state,
         "public_slug": f.public_slug,
         "created_at": f.created_at.isoformat(),
+        "status": f.status.value,
+        "is_public": f.is_public,
+        "can_contribute": f.status == FundraiserStatus.ACTIVE,
     }
 
 @explore_bp.route("/explore/fundraisers", methods=["GET"])
@@ -30,7 +30,11 @@ def list_public_fundraisers():
     city = (request.args.get("city") or "").strip()
     state = (request.args.get("state") or "").strip()
 
-    q = Fundraiser.query.filter(Fundraiser.is_public.is_(True))
+    q = Fundraiser.query.filter(
+        Fundraiser.is_public.is_(True),
+        Fundraiser.status.in_([FundraiserStatus.ACTIVE, FundraiserStatus.FINISHED]),
+    )
+
     if search:
         like = f"%{search.lower()}%"
         q = q.filter(or_(func.lower(Fundraiser.title).like(like),
@@ -53,10 +57,16 @@ def list_public_fundraisers():
 
 @explore_bp.route("/explore/fundraisers/<slug>", methods=["GET"])
 def get_public_by_slug(slug):
-    f = Fundraiser.query.filter_by(public_slug=slug, is_public=True).first()
+    f = Fundraiser.query.filter(
+        Fundraiser.public_slug == slug,
+        Fundraiser.is_public.is_(True)
+    ).first()
     if not f:
         return jsonify({"error":"not_found"}), 404
-    # Reaproveita estrutura do seu public endpoint
+
+    if f.status == FundraiserStatus.PAUSED:
+        return jsonify({"error":"not_found"}), 404
+
     return jsonify({
         "id": str(f.id),
         "title": f.title,
@@ -69,4 +79,7 @@ def get_public_by_slug(slug):
         "owner_name": f.owner.name,
         "public_slug": f.public_slug,
         "created_at": f.created_at.isoformat(),
+        "status": f.status.value,
+        "is_public": f.is_public,
+        "can_contribute": f.status == FundraiserStatus.ACTIVE,
     }), 200

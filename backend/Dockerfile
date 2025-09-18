@@ -10,6 +10,9 @@ COPY . /app
 
 RUN chmod +x /app/entrypoint.sh
 
+RUN mkdir -p /app/data /app/storage && \
+    chown -R 1000:1000 /app/data /app/storage
+
 EXPOSE 5000
 ENV FLASK_APP=app
 ENV PYTHONUNBUFFERED=1

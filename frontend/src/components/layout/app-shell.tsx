@@ -38,7 +38,7 @@ const navigationItems = [
   { name: "Explorar Arrecadações", href: "/app/explore", icon: Globe },
   { name: "Minhas Contribuições", href: "/app/contributions", icon: HandHeart },
   { name: "Segurança", href: "/app/security", icon: Shield },
-  { name: "Notas Fiscais", href: "/app/invoices", icon: Receipt },
+  { name: "Comprovantes", href: "/app/invoices", icon: Receipt },
 ];
 
 const Sidebar = ({
@@ -147,7 +147,7 @@ const UserDropdown = () => {
 
         <DropdownMenuItem>
           <Receipt className="mr-2 h-4 w-4" />
-          <Link to="/app/invoices">Notas Fiscais</Link>
+          <Link to="/app/invoices">Comprovantes</Link>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />

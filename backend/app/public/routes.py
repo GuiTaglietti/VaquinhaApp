@@ -4,7 +4,7 @@ import hashlib
 from flask import Blueprint, jsonify, make_response
 from sqlalchemy.orm import joinedload
 from ..extensions import db
-from ..models import Withdrawal, BankAccount, Fundraiser, User, Contribution
+from ..models import Withdrawal, BankAccount, Fundraiser, User, Contribution, FundraiserStatus
 from ..utils import validate_audit_token
 from datetime import datetime
 
@@ -17,6 +17,10 @@ def get_public_fundraiser(public_slug):
     fundraiser = Fundraiser.query.filter_by(public_slug=public_slug, is_public=True).first()
     if not fundraiser:
         return jsonify({"error": "not_found"}), 404
+
+    if fundraiser.status == FundraiserStatus.PAUSED:
+        return jsonify({"error": "not_found"}), 404
+
     return jsonify({
         "id": str(fundraiser.id),
         "title": fundraiser.title,
@@ -27,6 +31,10 @@ def get_public_fundraiser(public_slug):
         "state": fundraiser.state,
         "cover_image_url": fundraiser.cover_image_url,
         "owner_name": fundraiser.owner.name,
+        "status": fundraiser.status.value,
+        "is_public": fundraiser.is_public,
+        "public_slug": fundraiser.public_slug,
+        "can_contribute": fundraiser.status == FundraiserStatus.ACTIVE,
     })
 
 

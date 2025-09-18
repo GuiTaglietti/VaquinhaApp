@@ -86,6 +86,9 @@ export interface PublicFundraiserData {
   city?: string;
   state?: string;
   public_slug: string;
+  status?: "active" | "paused" | "finished";
+  is_public?: boolean;
+  can_contribute: boolean;
 }
 
 export interface PublicFundraiserListItem {
@@ -99,6 +102,9 @@ export interface PublicFundraiserListItem {
   state?: string;
   public_slug: string;
   created_at: string;
+  status?: "active" | "paused" | "finished";
+  is_public?: boolean;
+  can_contribute: boolean;
 }
 
 export interface UserProfile {

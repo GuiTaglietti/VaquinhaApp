@@ -33,6 +33,8 @@ import {
   BRAZILIAN_STATES,
 } from "@/types";
 import { toast } from "react-hot-toast";
+import { LegalDialog } from "@/components/ui/legal-dialog";
+import type { LegalDocKey } from "@/services/legal";
 
 interface FormData extends CreateFundraiserRequest {
   image_type: "upload" | "url";
@@ -64,6 +66,14 @@ export const FundraiserFormPage = () => {
   const watchAgeConfirmation = watch("age_confirmation");
   const watchTermsAccepted = watch("terms_accepted");
   const coverImageUrl = watch("cover_image_url");
+
+  const [legalOpen, setLegalOpen] = useState(false);
+  const [legalDoc, setLegalDoc] = useState<LegalDocKey | null>(null);
+
+  const openLegal = (doc: LegalDocKey) => {
+    setLegalDoc(doc);
+    setLegalOpen(true);
+  };
 
   const setCoverUrl = (url: string) =>
     setValue("cover_image_url", url, { shouldValidate: true });
@@ -496,17 +506,29 @@ export const FundraiserFormPage = () => {
                       </Label>
                       <p className="text-xs text-muted-foreground">
                         Li e aceito os{" "}
-                        <span className="text-primary cursor-pointer hover:underline">
+                        <button
+                          type="button"
+                          className="text-primary hover:underline underline-offset-4"
+                          onClick={() => openLegal("terms")}
+                        >
                           termos de uso
-                        </span>
+                        </button>
                         , a{" "}
-                        <span className="text-primary cursor-pointer hover:underline">
+                        <button
+                          type="button"
+                          className="text-primary hover:underline underline-offset-4"
+                          onClick={() => openLegal("privacy")}
+                        >
                           política de privacidade
-                        </span>{" "}
+                        </button>{" "}
                         e estou ciente das{" "}
-                        <span className="text-primary cursor-pointer hover:underline">
+                        <button
+                          type="button"
+                          className="text-primary hover:underline underline-offset-4"
+                          onClick={() => openLegal("fees")}
+                        >
                           taxas aplicáveis
-                        </span>
+                        </button>
                       </p>
                     </div>
                   </div>
@@ -567,6 +589,12 @@ export const FundraiserFormPage = () => {
           </div>
         </div>
       </form>
+
+      <LegalDialog
+        open={legalOpen}
+        onOpenChange={setLegalOpen}
+        doc={legalDoc}
+      />
     </div>
   );
 };

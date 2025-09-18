@@ -36,10 +36,25 @@ services:
       DATABASE_HOST: db
       DATABASE_USER: postgres
       DATABASE_NAME: vaquinhas_db
-      DB_PASSWORD_FILE: /run/secrets/db_password
+      PIX_BASE_URL: http://pix-module:8000
+      PIX_API_KEY: ${PIX_API_KEY}
+      PIX_WEBHOOK_SECRET: ${PIX_WEBHOOK_SECRET}
     secrets:
       - db_password
-    command: ["/app/entrypoint.sh"]
+    command: |
+      sh -lc '
+        set -e
+        PASS="$(tr -d "\r\n" < /run/secrets/db_password)"
+        export POSTGRES_HOST="db"
+        export POSTGRES_PORT="5432"
+        export POSTGRES_USER="postgres"
+        export POSTGRES_DB="vaquinhas_db"
+        export POSTGRES_PASSWORD="$PASS"
+        export DATABASE_PASSWORD="$PASS"
+        export PGPASSWORD="$PASS"
+        export DB_PASSWORD_FILE="/run/secrets/db_password"
+        exec /app/entrypoint.sh
+      '
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:5000/api/healthz || exit 1"]
       interval: 5s
@@ -83,6 +98,12 @@ services:
       DATABASE_USER: postgres
       DATABASE_NAME: vaquinhas_db
       DB_PASSWORD_FILE: /run/secrets/db_password
+      NOTIFICATIONS_DB_PATH: /app/data/admin_notifications.db
+      NOTIFICATIONS_RETENTION_DAYS: 180
+      STORAGE_DIR: /app/storage
+    volumes:
+      - admin_notifications_data:/app/data
+      - admin_storage:/app/storage
     secrets:
       - db_password
     command: >
@@ -109,10 +130,85 @@ services:
     depends_on:
       - admin-backend
 
+  db-init-pix:
+    image: postgres:15
+    depends_on:
+      db:
+        condition: service_healthy
+    secrets:
+      - db_password
+      - pix_db_password
+    command: |
+      sh -lc '
+        set -e
+        # Lê secrets e remove CR/LF
+        PGPASSWORD="$(tr -d "\r\n" < /run/secrets/db_password)"
+        PIXPASS="$(tr -d "\r\n" < /run/secrets/pix_db_password)"
+        export PGPASSWORD
+
+        cat > /tmp/init_pix.sql <<'SQL'
+      \set ON_ERROR_STOP on
+
+      -- role pix_user
+      SELECT 1 AS role_exists FROM pg_roles WHERE rolname = '\''pix_user'\'';
+      \gset
+      \if :{?role_exists}
+        \echo role pix_user já existe
+      \else
+        CREATE USER pix_user WITH PASSWORD :'pixpass';
+      \endif
+
+      -- database pix_db
+      SELECT 1 AS db_exists FROM pg_database WHERE datname = '\''pix_db'\'';
+      \gset
+      \if :{?db_exists}
+        \echo database pix_db já existe
+      \else
+        CREATE DATABASE pix_db OWNER pix_user;
+      \endif
+
+      GRANT ALL PRIVILEGES ON DATABASE pix_db TO pix_user;
+      SQL 
+
+      psql -h db -U postgres -d postgres -v ON_ERROR_STOP=1 -v pixpass="$PIXPASS" -f /tmp/init_pix.sql
+      '
+    restart: "no"
+
+  pix-module:
+    build:
+      context: ../PIX-Module
+      dockerfile: Dockerfile
+    working_dir: /app
+    env_file:
+      - ../PIX-Module/.env
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+      API_KEY: ${PIX_API_KEY}
+      BACKEND_WEBHOOK_URL: http://backend:5000/api/payments/pix/webhook
+      BACKEND_WEBHOOK_SECRET: ${PIX_WEBHOOK_SECRET}
+    volumes:
+      - ../PIX-Module/certs:/certs:ro
+      - pix_data:/app/data
+    ports:
+      - "7010:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      db-init-pix:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+
 volumes:
   db_data:
   uploads_data:
+  admin_notifications_data:
+  admin_storage:
+  pix_data:
 
 secrets:
   db_password:
     file: ./secrets/db_password.txt
+  pix_db_password:
+    file: ./secrets/pix_db_password.txt

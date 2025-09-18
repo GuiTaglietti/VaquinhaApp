@@ -38,6 +38,8 @@ export interface UpdateProfileRequest {
   };
 }
 
+export type PixKeyType = "CPF" | "CNPJ" | "EMAIL" | "PHONE" | "EVP";
+
 export interface BankAccount {
   id: string;
   bank_code: string;
@@ -50,6 +52,8 @@ export interface BankAccount {
   is_default: boolean;
   created_at: string;
   updated_at: string;
+  pix_key?: string | null;
+  pix_key_type?: PixKeyType | null;
 }
 
 export interface CreateBankAccountRequest {
@@ -61,6 +65,8 @@ export interface CreateBankAccountRequest {
   account_holder_name: string;
   document_number: string;
   is_default?: boolean;
+  pix_key?: string | null;
+  pix_key_type?: PixKeyType | null;
 }
 
 export interface UpdateBankAccountRequest {
@@ -72,6 +78,8 @@ export interface UpdateBankAccountRequest {
   account_holder_name?: string;
   document_number?: string;
   is_default?: boolean;
+  pix_key?: string | null;
+  pix_key_type?: PixKeyType | null;
 }
 
 export interface PublicFundraiserListItem {

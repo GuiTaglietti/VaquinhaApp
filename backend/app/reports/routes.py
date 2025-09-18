@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import requests
 from datetime import datetime
 
 from flask import request, jsonify, Blueprint
@@ -21,6 +22,8 @@ reports_bp = Blueprint("reports", __name__)
 ADMIN_REPORT_EMAILS = [
     e.strip() for e in os.getenv("ADMIN_REPORT_EMAILS", "").split(",") if e.strip()
 ]
+ADMIN_BACKEND_URL = os.getenv("ADMIN_BACKEND_URL")
+ADMIN_WEBHOOK_KEY = os.getenv("ADMIN_WEBHOOK_KEY", "")
 
 def _build_report_email_html_admin(
     fundraiser: Fundraiser,
@@ -146,4 +149,23 @@ def report_fundraiser():
         except Exception as exc:
             logger.exception("Falha ao enviar e-mail de denúncia: %s", exc)
 
+    if ADMIN_BACKEND_URL and ADMIN_WEBHOOK_KEY:
+        try:
+          requests.post(
+              f"{ADMIN_BACKEND_URL.rstrip('/')}/webhooks/fundraiser-reported",
+              headers={"X-Admin-Api-Key": ADMIN_WEBHOOK_KEY, "Content-Type": "application/json"},
+              json={
+                  "fundraiser_id": str(f.id),
+                  "reason": reason,
+                  "message": message or None,
+                  "reporter_email": reporter_email or None,
+                  "reported_at": datetime.utcnow().isoformat(),
+              },
+              timeout=10,
+          )
+        
+        except Exception as exc:
+          logger.exception("Falha ao acionar webhook de denúncia: %s", exc)
+
+    
     return jsonify({"status": "ok"}), 201

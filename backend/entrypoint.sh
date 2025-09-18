@@ -1,6 +1,83 @@
 #!/bin/sh
 set -e
 
+# --- garante POSTGRES_PASSWORD a partir do secret (fallback) ---
+if [ -z "${POSTGRES_PASSWORD:-}" ] && [ -n "${DB_PASSWORD_FILE:-}" ] && [ -f "${DB_PASSWORD_FILE}" ]; then
+  export POSTGRES_PASSWORD="$(tr -d '\r\n' < "$DB_PASSWORD_FILE")"
+fi
+# loga só o tamanho (não vaza a senha)
+if [ -n "${POSTGRES_PASSWORD:-}" ]; then
+  echo "Senha do Postgres presente (len=${#POSTGRES_PASSWORD})"
+else
+  echo "ATENÇÃO: POSTGRES_PASSWORD ausente no ambiente"
+fi
+
+# 1) Espera DNS resolver "db"
+python - <<'PY'
+import socket, time, os
+host=os.environ.get("POSTGRES_HOST","db")
+for i in range(90):
+    try:
+        ip = socket.gethostbyname(host)
+        print(f"DNS ok: {host} -> {ip}")
+        break
+    except Exception as e:
+        print("Aguardando DNS...", e); time.sleep(1)
+else:
+    raise SystemExit("DNS para 'db' indisponível")
+PY
+
+# 2) Espera TCP/DB aceitar conexão
+echo "Aguardando Postgres em ${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}..."
+python - <<'PY'
+import os, time, psycopg2
+host=os.environ.get("POSTGRES_HOST","db")
+port=int(os.environ.get("POSTGRES_PORT","5432"))
+user=os.environ.get("POSTGRES_USER","postgres")
+pwd=os.environ.get("POSTGRES_PASSWORD","")
+db=os.environ.get("POSTGRES_DB","vaquinhas_db")
+for i in range(180):
+    try:
+        psycopg2.connect(host=host, port=port, user=user, password=pwd, dbname=db).close()
+        print("Postgres OK"); break
+    except Exception as e:
+        print("Aguardando Postgres...", e); time.sleep(1)
+else:
+    raise SystemExit("DB não respondeu a tempo")
+PY
+
+python - <<'PY'
+import socket, time, os
+host=os.environ.get("POSTGRES_HOST","db")
+for i in range(90):
+    try:
+        ip = socket.gethostbyname(host)
+        print(f"DNS ok: {host} -> {ip}")
+        break
+    except Exception as e:
+        print("Aguardando DNS...", e); time.sleep(1)
+else:
+    raise SystemExit("DNS para 'db' indisponível")
+PY
+
+echo "Aguardando Postgres em ${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}..."
+python - <<'PY'
+import os, time, psycopg2
+host=os.environ.get("POSTGRES_HOST","db")
+port=int(os.environ.get("POSTGRES_PORT","5432"))
+user=os.environ.get("POSTGRES_USER","postgres")
+pwd=os.environ.get("POSTGRES_PASSWORD","postgres")
+db=os.environ.get("POSTGRES_DB","vaquinhas_db")
+for i in range(120):
+    try:
+        psycopg2.connect(host=host, port=port, user=user, password=pwd, dbname=db).close()
+        print("Postgres OK"); break
+    except Exception as e:
+        print("Aguardando Postgres...", e); time.sleep(1)
+else:
+    raise SystemExit("DB não respondeu a tempo")
+PY
+
 echo "Aguardando Postgres em ${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}..."
 python - <<'PY'
 import os, time, psycopg2

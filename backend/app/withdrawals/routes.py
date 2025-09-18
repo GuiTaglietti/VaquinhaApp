@@ -31,7 +31,6 @@ PAYOUT_TOKEN_MAX_VIEWS = int(os.getenv("PAYOUT_TOKEN_MAX_VIEWS", "5"))
 FEE_MAINTENANCE_PERCENT = Decimal(os.getenv("FEE_MAINTENANCE_PERCENT", "4.99"))   # %
 FEE_PER_DONATION = Decimal(os.getenv("FEE_PER_DONATION", "0.49"))                 # R$
 FEE_WITHDRAWAL_FIXED = Decimal(os.getenv("FEE_WITHDRAWAL_FIXED", "4.50"))         # R$
-INVOICE_TAX_RATE_PERCENT = Decimal(os.getenv("INVOICE_TAX_RATE_PERCENT", "5"))
 
 def _new_payout_token():
     token = secrets.token_urlsafe(32)
@@ -160,9 +159,6 @@ def _available_balance_net(fundraiser_id) -> dict:
         "max_payout_now_after_withdraw_fee": _q(max_payout_now_after_fee),
     }
 
-# ---------------------- END HELPERs ----------------------
-
-
 def _ensure_invoice_for_withdrawal(w: Withdrawal) -> Invoice:
     inv: Invoice | None = (
         db.session.query(Invoice).filter_by(withdrawal_id=w.id).first()
@@ -170,16 +166,14 @@ def _ensure_invoice_for_withdrawal(w: Withdrawal) -> Invoice:
     if inv:
         return inv
 
-    amount = _dec(w.amount)
-    withdrawal_fee = _q(FEE_WITHDRAWAL_FIXED)
-
-    tax = withdrawal_fee if withdrawal_fee <= amount else _q(amount)
+    net = _dec(w.amount)
+    fee = _q(FEE_WITHDRAWAL_FIXED)
 
     inv = Invoice(
         withdrawal_id=w.id,
         fundraiser_id=w.fundraiser_id,
-        amount=_q(amount),
-        tax_amount=_q(tax),
+        amount=_q(net),
+        tax_amount=fee,
         issued_at=datetime.utcnow(),
         pdf_url=None,
     )
@@ -188,6 +182,7 @@ def _ensure_invoice_for_withdrawal(w: Withdrawal) -> Invoice:
     return inv
 
 
+# ---------------------- END HELPERs ----------------------
 
 @withdrawals_bp.route("/available/<uuid:fundraiser_id>", methods=["GET"])
 @jwt_required()
@@ -228,7 +223,8 @@ def get_available_balance(fundraiser_id):
 def request_withdrawal():
     """
     Cria um pedido de saque.
-    Valida contra o SALDO LÍQUIDO e notifica o Admin BE via webhook para SSE.
+    O campo `amount` do payload é o VALOR BRUTO a descontar do saldo (antes da taxa fixa do saque).
+    O usuário receberá (amount - FEE_WITHDRAWAL_FIXED), que é o valor LÍQUIDO salvo em Withdrawal.amount.
     """
     data = request.get_json() or {}
     fundraiser_id = data.get("fundraiser_id")
@@ -237,14 +233,17 @@ def request_withdrawal():
     description = (data.get("description") or "").strip() or None
 
     if not fundraiser_id or not bank_account_id or amount is None:
-        return jsonify({"error": "invalid_request", "message": "Campos obrigatórios: fundraiser_id, bank_account_id, amount"}), 400
-
+        return jsonify({
+            "error": "invalid_request",
+            "message": "Campos obrigatórios: fundraiser_id, bank_account_id, amount"
+        }), 400
 
     try:
-        amount_dec = _q(_dec(amount))
+        requested_total = _q(_dec(amount))
     except Exception:
         return jsonify({"error": "invalid_amount"}), 400
-    if amount_dec < Decimal("50.00"):
+
+    if requested_total < Decimal("50.00"):
         return jsonify({"error": "invalid_amount"}), 400
 
     f: Fundraiser | None = Fundraiser.query.get(fundraiser_id)
@@ -255,26 +254,29 @@ def request_withdrawal():
     if not ba or str(ba.owner_user_id) != str(g.tenant_id):
         return jsonify({"error": "invalid_bank_account"}), 400
 
-    # >>> Saldo líquido disponível (com taxas) <<<
     calc = _available_balance_net(f.id)
     available_net_before_fee = calc["available_net_before_withdraw_fee"]
-    max_payout_after_fee = calc["max_payout_now_after_withdraw_fee"]
 
-    # amount = valor líquido a receber -> não pode exceder o máximo após taxa fixa de saque
-    if amount_dec > max_payout_after_fee:
+    if requested_total > available_net_before_fee:
         return jsonify({
             "error": "insufficient_funds",
-            "message": "Valor solicitado excede o saldo disponível líquido para saque (já considerando taxas).",
+            "message": "Valor solicitado excede o saldo disponível líquido (antes da taxa do saque).",
             "available_net_before_withdraw_fee": float(_q(available_net_before_fee)),
             "withdraw_fee_fixed": float(_q(FEE_WITHDRAWAL_FIXED)),
-            "max_payout_now_after_withdraw_fee": float(_q(max_payout_after_fee)),
         }), 422
 
-    # Cria o saque
+    net_amount = _q(requested_total - FEE_WITHDRAWAL_FIXED)
+    if net_amount <= Decimal("0.00"):
+        return jsonify({
+            "error": "amount_below_fee",
+            "message": "O valor do saque deve ser maior que a taxa fixa do saque.",
+            "withdraw_fee_fixed": float(_q(FEE_WITHDRAWAL_FIXED)),
+        }), 400
+
     w = Withdrawal(
         fundraiser_id=f.id,
         bank_account_id=ba.id,
-        amount=amount_dec,  # valor líquido ao usuário
+        amount=net_amount,
         description=description,
         status=WithdrawalStatus.PENDING,
         requested_at=datetime.utcnow(),
@@ -332,7 +334,11 @@ def request_withdrawal():
                 payout_url=payout_url,
             )
             for addr in [x.strip() for x in notify_to.split(",") if x.strip()]:
-                send_email_html_mailgun(addr, f"[Saque] Novo pedido — {f_db.title if f_db else ''}", admin_html)
+                send_email_html_mailgun(
+                    addr,
+                    f"[Saque] Novo pedido — {f_db.title if f_db else ''}",
+                    admin_html
+                )
 
         if os.getenv("SEND_WITHDRAWAL_CONFIRM_TO_USER", "true").lower() in ("1", "true", "yes", "y"):
             user_html = build_withdrawal_email_html_user(
@@ -344,12 +350,22 @@ def request_withdrawal():
                 control_url=control_url,
             )
             if requester and requester.email:
-                send_email_html_mailgun(requester.email, f"Recebemos seu pedido de saque — {f_db.title if f_db else ''}", user_html)
+                send_email_html_mailgun(
+                    requester.email,
+                    f"Recebemos seu pedido de saque — {f_db.title if f_db else ''}",
+                    user_html
+                )
 
     except Exception:
         current_app.logger.exception("Falha ao enviar e-mails de saque")
 
-    return jsonify(_serialize_withdrawal(w)), 201
+    resp = _serialize_withdrawal(w)
+    resp.update({
+        "requested_total": float(requested_total),
+        "amount_net": float(net_amount),
+        "withdraw_fee_fixed": float(_q(FEE_WITHDRAWAL_FIXED)),
+    })
+    return jsonify(resp), 201
 
 
 

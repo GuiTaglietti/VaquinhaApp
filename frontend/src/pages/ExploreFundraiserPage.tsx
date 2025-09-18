@@ -39,9 +39,13 @@ export const ExploreFundraiserPage = () => {
   const [message, setMessage] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
 
-  // PIX / QR Code
+  // PIX modal state
   const [showPixModal, setShowPixModal] = useState(false);
   const [contributionAmount, setContributionAmount] = useState(0);
+  const [pixCode, setPixCode] = useState<string | null>(null);
+  const [txid, setTxid] = useState<string | null>(null);
+
+  const canContribute = fundraiser?.can_contribute === true;
 
   useEffect(() => {
     if (slug) {
@@ -52,7 +56,6 @@ export const ExploreFundraiserPage = () => {
 
   const loadFundraiser = async () => {
     if (!slug) return;
-
     try {
       setIsLoading(true);
       const data = await exploreService.getFundraiserBySlug(slug);
@@ -67,46 +70,51 @@ export const ExploreFundraiserPage = () => {
 
   const handleContribute = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!fundraiser) return;
 
-    if (!fundraiser || !amount) return;
-
-    const numAmount = parseFloat(amount);
-    if (Number.isNaN(numAmount) || numAmount < 20) {
-      toast.error("O valor mínimo para contribuição é R$ 20,00");
+    if (!canContribute) {
+      toast.error(
+        "Esta arrecadação não está aceitando contribuições no momento."
+      );
       return;
     }
 
-    // Abre modal PIX para gerar QR Code e prosseguir
-    setContributionAmount(numAmount);
-    setShowPixModal(true);
-  };
+    const numAmount = parseFloat(amount);
+    // if (Number.isNaN(numAmount) || numAmount < 20) {
+    //   toast.error("O valor mínimo para contribuição é R$ 20,00");
+    //   return;
+    // }
 
-  const handlePixPaymentSuccess = async () => {
+    // 1) Cria contribuição no backend para obter txid + brcode
     try {
       setIsContributing(true);
 
-      const contributionData: CreateContributionRequest = {
-        amount: contributionAmount,
+      const payload: CreateContributionRequest = {
+        amount: numAmount,
         message: message.trim() || undefined,
         is_anonymous: isAnonymous,
       };
 
-      await contributionsService.createContribution(
-        fundraiser!.id,
-        contributionData
+      const res = await contributionsService.createContribution(
+        fundraiser.id,
+        payload
       );
 
-      toast.success("Contribuição realizada com sucesso!");
+      const code = res.brcode || res.pix_copia_e_cola || "";
+      if (!res.payment_intent_id || !code) {
+        toast.error("Falha ao iniciar pagamento PIX.");
+        setIsContributing(false);
+        return;
+      }
 
-      // Reset form
-      setAmount("");
-      setMessage("");
-      setIsAnonymous(false);
+      setContributionAmount(numAmount);
+      setTxid(res.payment_intent_id);
+      setPixCode(code);
 
-      // Recarrega valores
-      await loadFundraiser();
+      // 2) Abre o modal PIX
+      setShowPixModal(true);
     } catch (error) {
-      toast.error("Erro ao processar contribuição");
+      toast.error("Erro ao iniciar contribuição.");
     } finally {
       setIsContributing(false);
     }
@@ -114,7 +122,6 @@ export const ExploreFundraiserPage = () => {
 
   const handleShare = async () => {
     if (!fundraiser) return;
-
     try {
       const url = `${window.location.origin}/p/${fundraiser.public_slug}`;
       await navigator.clipboard.writeText(url);
@@ -181,7 +188,7 @@ export const ExploreFundraiserPage = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Informações da arrecadação */}
+        {/* Informações */}
         <div className="lg:col-span-2 space-y-6">
           <Card>
             {fundraiser.cover_image_url && (
@@ -252,7 +259,7 @@ export const ExploreFundraiserPage = () => {
           </Card>
         </div>
 
-        {/* Formulário de Contribuição (não sticky) */}
+        {/* Formulário */}
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -277,12 +284,13 @@ export const ExploreFundraiserPage = () => {
                       id="amount"
                       type="number"
                       step="0.01"
-                      min="20"
+                      min="1"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       className="pl-10"
                       placeholder="0,00"
                       required
+                      disabled={!canContribute}
                     />
                   </div>
                 </div>
@@ -295,6 +303,7 @@ export const ExploreFundraiserPage = () => {
                     onChange={(e) => setMessage(e.target.value)}
                     placeholder="Deixe uma mensagem de apoio..."
                     rows={3}
+                    disabled={!canContribute}
                   />
                 </div>
 
@@ -305,6 +314,7 @@ export const ExploreFundraiserPage = () => {
                     onCheckedChange={(checked) =>
                       setIsAnonymous(checked === true)
                     }
+                    disabled={!canContribute}
                   />
                   <Label htmlFor="anonymous" className="text-sm">
                     Contribuir anonimamente
@@ -313,24 +323,26 @@ export const ExploreFundraiserPage = () => {
 
                 <Button
                   type="submit"
-                  disabled={isContributing}
+                  disabled={isContributing || !canContribute}
                   className="w-full"
                 >
                   {isContributing ? (
                     <LoadingSpinner size="sm" />
-                  ) : (
+                  ) : canContribute ? (
                     <>
                       <Heart className="h-4 w-4 mr-2" />
                       Contribuir{" "}
                       {amount && `- ${formatCurrency(parseFloat(amount))}`}
                     </>
+                  ) : (
+                    "Contribuições encerradas"
                   )}
                 </Button>
               </form>
             </CardContent>
           </Card>
 
-          {/* Valores Sugeridos (alinhados ao mínimo R$ 20) */}
+          {/* Valores Sugeridos */}
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">Valores Sugeridos</CardTitle>
@@ -353,13 +365,18 @@ export const ExploreFundraiserPage = () => {
         </div>
       </div>
 
-      {/* PIX Payment Modal */}
+      {/* Modal PIX */}
       <PixPaymentModal
         isOpen={showPixModal}
         onClose={() => setShowPixModal(false)}
         amount={contributionAmount}
         fundraiserTitle={fundraiser?.title || ""}
-        onSuccess={handlePixPaymentSuccess}
+        pixCode={pixCode}
+        txid={txid}
+        onSuccess={async () => {
+          // recarrega valores ao confirmar
+          await loadFundraiser();
+        }}
         onExpire={() => {
           toast.error("Pagamento PIX expirou");
           setShowPixModal(false);

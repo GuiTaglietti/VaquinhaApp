@@ -25,18 +25,23 @@ export const PublicFundraiserPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // PIX modal state
+  // PIX modal
   const [showPixModal, setShowPixModal] = useState(false);
   const [contributionAmount, setContributionAmount] = useState(0);
+  const [pixCode, setPixCode] = useState<string | null>(null);
+  const [txid, setTxid] = useState<string | null>(null);
+
+  const canContribute = fundraiser?.can_contribute === true;
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-    watch,
     setValue,
-  } = useForm<CreateContributionRequest & { is_anonymous: boolean }>();
-  const watchIsAnonymous = watch("is_anonymous", false);
+    watch,
+  } = useForm<CreateContributionRequest & { is_anonymous: boolean }>({
+    defaultValues: { amount: 20, is_anonymous: false, message: "" },
+  });
 
   useEffect(() => {
     if (slug) {
@@ -63,45 +68,39 @@ export const PublicFundraiserPage = () => {
   ) => {
     if (!fundraiser) return;
 
-    // validação de mínimo
-    if (data.amount < 20) {
-      toast.error("O valor mínimo para contribuição é R$ 20,00");
+    if (!canContribute) {
+      toast.error(
+        "Esta arrecadação não está aceitando contribuições no momento."
+      );
       return;
     }
 
-    // abre modal PIX e guarda o valor
-    setContributionAmount(data.amount);
-    setShowPixModal(true);
-  };
+    // if (data.amount < 20) {
+    //   toast.error("O valor mínimo para contribuição é R$ 20,00");
+    //   return;
+    // }
 
-  const handlePixPaymentSuccess = async () => {
     try {
       setIsSubmitting(true);
 
-      const formData = watch();
-      const contributionData: CreateContributionRequest = {
-        amount: contributionAmount,
-        message: formData.message,
-        is_anonymous: formData.is_anonymous,
-      };
+      // 1) Cria contribuição e obtém txid + brcode
+      const res = await contributionsService.create(fundraiser.id, {
+        amount: data.amount,
+        message: data.message,
+        is_anonymous: data.is_anonymous,
+      });
 
-      const result = await contributionsService.create(
-        fundraiser!.id,
-        contributionData
-      );
+      const code = res.brcode || res.pix_copia_e_cola || "";
+      if (!res.payment_intent_id || !code) {
+        toast.error("Falha ao iniciar pagamento PIX.");
+        setIsSubmitting(false);
+        return;
+      }
 
-      toast.success(
-        "Contribuição realizada com sucesso! Aguarde a confirmação do pagamento."
-      );
-      console.log("Payment intent ID:", result.payment_intent_id);
-
-      // reset
-      setValue("amount", 20);
-      setValue("message", "");
-      setValue("is_anonymous", false);
-
-      // atualiza valores
-      await fetchFundraiser();
+      setContributionAmount(data.amount);
+      setTxid(res.payment_intent_id);
+      setPixCode(code);
+      setShowPixModal(true);
     } catch (error) {
       console.error("Error creating contribution:", error);
       toast.error("Erro ao processar contribuição. Tente novamente.");
@@ -116,7 +115,7 @@ export const PublicFundraiserPage = () => {
       navigator.share({
         title: fundraiser?.title,
         text: fundraiser?.description,
-        url: url,
+        url,
       });
     } else {
       navigator.clipboard.writeText(url);
@@ -269,7 +268,7 @@ export const PublicFundraiserPage = () => {
                         id="amount"
                         type="number"
                         step="0.01"
-                        min="20"
+                        min="1"
                         placeholder="20,00"
                         className="pl-10"
                         {...register("amount", {
@@ -341,7 +340,7 @@ export const PublicFundraiserPage = () => {
                   <Button
                     type="submit"
                     className="w-full gradient-primary text-white shadow-medium hover:shadow-strong transition-smooth"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !canContribute}
                     size="lg"
                   >
                     {isSubmitting ? (
@@ -349,16 +348,17 @@ export const PublicFundraiserPage = () => {
                         <LoadingSpinner size="sm" className="mr-2" />
                         Processando...
                       </>
-                    ) : (
+                    ) : canContribute ? (
                       <>
                         <Heart className="w-4 h-4 mr-2" />
                         Contribuir Agora
                       </>
+                    ) : (
+                      "Contribuições encerradas"
                     )}
                   </Button>
                 </form>
 
-                {/* Aviso de segurança */}
                 <div className="text-xs text-center text-muted-foreground pt-4 border-t">
                   <p>🔒 Transação segura e protegida</p>
                 </div>
@@ -403,13 +403,18 @@ export const PublicFundraiserPage = () => {
         </div>
       </div>
 
-      {/* PIX Payment Modal */}
+      {/* Modal PIX */}
       <PixPaymentModal
         isOpen={showPixModal}
         onClose={() => setShowPixModal(false)}
         amount={contributionAmount}
         fundraiserTitle={fundraiser?.title || ""}
-        onSuccess={handlePixPaymentSuccess}
+        pixCode={pixCode}
+        txid={txid}
+        onSuccess={async () => {
+          // Atualiza valores e fecha modal
+          await fetchFundraiser();
+        }}
         onExpire={() => {
           toast.error("Pagamento PIX expirou");
           setShowPixModal(false);

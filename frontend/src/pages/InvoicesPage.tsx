@@ -41,7 +41,7 @@ export const InvoicesPage = () => {
       setInvoices(data);
     } catch (error) {
       console.error("Error loading invoices:", error);
-      toast.error("Erro ao carregar notas fiscais");
+      toast.error("Erro ao carregar comprovantes.");
     } finally {
       setIsLoading(false);
     }
@@ -73,14 +73,14 @@ export const InvoicesPage = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `nota-fiscal-${invoice.id}.pdf`;
+      a.download = `comprovante-saque-${invoice.id}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
       console.error(e);
-      toast.error("Não foi possível baixar o PDF desta nota fiscal.");
+      toast.error("Não foi possível baixar o PDF deste comprovante.");
     }
   };
   const totalInvoiced = invoices.reduce((sum, i) => sum + i.amount, 0);
@@ -97,9 +97,9 @@ export const InvoicesPage = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Notas Fiscais</h1>
+        <h1 className="text-3xl font-bold">Comprovantes de Saque</h1>
         <p className="text-muted-foreground">
-          Acompanhe todas as notas fiscais geradas dos seus saques
+          Acompanhe todos as comprovantes gerados dos seus saques
         </p>
       </div>
 
@@ -108,14 +108,14 @@ export const InvoicesPage = () => {
         <Card className="gradient-card border-0 shadow-soft">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Total de Notas
+              Total de Comprovantes
             </CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{invoices.length}</div>
             <p className="text-xs text-muted-foreground">
-              notas fiscais emitidas
+              comprovantes emitidos
             </p>
           </CardContent>
         </Card>
@@ -154,9 +154,9 @@ export const InvoicesPage = () => {
       {/* Invoices List */}
       <Card className="gradient-card border-0 shadow-soft">
         <CardHeader>
-          <CardTitle>Histórico de Notas Fiscais</CardTitle>
+          <CardTitle>Histórico de Comprovantes</CardTitle>
           <CardDescription>
-            Todas as notas fiscais geradas automaticamente para seus saques
+            Todos os comprovantes gerados automaticamente para seus saques
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -164,10 +164,10 @@ export const InvoicesPage = () => {
             <div className="text-center py-8">
               <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium mb-2">
-                Nenhuma nota fiscal encontrada
+                Nenhum comprovante encontrado
               </h3>
               <p className="text-muted-foreground">
-                As notas fiscais aparecerão aqui após você realizar saques das
+                Os comprovantes aparecerão aqui após você realizar saques das
                 suas arrecadações.
               </p>
             </div>
@@ -183,7 +183,7 @@ export const InvoicesPage = () => {
                       <FileText className="h-5 w-5 text-primary" />
                       <div>
                         <h4 className="font-medium">
-                          Nota Fiscal #{invoice.id.slice(-8).toUpperCase()}
+                          Comprovante de Saque #{invoice.id.slice(-8).toUpperCase()}
                         </h4>
                         <p className="text-sm text-muted-foreground">
                           {invoice.fundraiser.title}
@@ -197,7 +197,7 @@ export const InvoicesPage = () => {
                           Valor Bruto:
                         </span>
                         <div className="font-medium">
-                          {formatCurrency(invoice.amount)}
+                          {formatCurrency(invoice.amount + invoice.tax_amount)}
                         </div>
                       </div>
                       <div>
@@ -211,7 +211,7 @@ export const InvoicesPage = () => {
                           Valor Líquido:
                         </span>
                         <div className="font-medium text-primary">
-                          {formatCurrency(invoice.amount - invoice.tax_amount)}
+                          {formatCurrency(invoice.amount)}
                         </div>
                       </div>
                       <div>

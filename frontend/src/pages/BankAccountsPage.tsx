@@ -63,6 +63,8 @@ export const BankAccountsPage = () => {
     account_type: "CHECKING",
     account_holder_name: "",
     document_number: "",
+    pix_key: "",
+    pix_key_type: undefined,
   });
 
   useEffect(() => {
@@ -101,6 +103,8 @@ export const BankAccountsPage = () => {
       account_type: "CHECKING",
       account_holder_name: "",
       document_number: "",
+      pix_key: "",
+      pix_key_type: undefined,
     });
     setEditingAccount(null);
   };
@@ -116,6 +120,8 @@ export const BankAccountsPage = () => {
         account_type: account.account_type,
         account_holder_name: account.account_holder_name,
         document_number: account.document_number,
+        pix_key: account.pix_key ?? "",
+        pix_key_type: account.pix_key_type ?? undefined,
       });
     } else {
       resetForm();
@@ -134,6 +140,16 @@ export const BankAccountsPage = () => {
     try {
       setIsSaving(true);
 
+      const hasPixKey = !!formData.pix_key?.trim();
+      const hasPixType = !!formData.pix_key_type;
+      if (hasPixKey !== hasPixType) {
+        toast.error(
+          "Preencha tipo e valor da chave PIX (ou deixe ambos em branco)."
+        );
+        setIsSaving(false);
+        return;
+      }
+
       if (editingAccount) {
         await profileService.updateBankAccount(editingAccount.id, formData);
         toast.success("Conta bancária atualizada com sucesso!");
@@ -145,7 +161,15 @@ export const BankAccountsPage = () => {
       await loadAccounts();
       handleCloseDialog();
     } catch (error) {
-      toast.error("Erro ao salvar conta bancária");
+      const msg = (error?.message || "").toLowerCase();
+      if (
+        msg.includes("pix") &&
+        (msg.includes("unique") || msg.includes("duplic"))
+      ) {
+        toast.error("Essa chave PIX já está em uso em outra conta.");
+      } else {
+        toast.error("Erro ao salvar conta bancária");
+      }
     } finally {
       setIsSaving(false);
     }
@@ -290,6 +314,53 @@ export const BankAccountsPage = () => {
                 </Select>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pix_key_type">
+                    Tipo de chave PIX (opcional)
+                  </Label>
+                  <Select
+                    value={formData.pix_key_type ?? ""}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        pix_key_type: value as any,
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CPF">CPF</SelectItem>
+                      <SelectItem value="CNPJ">CNPJ</SelectItem>
+                      <SelectItem value="EMAIL">E-mail</SelectItem>
+                      <SelectItem value="PHONE">Telefone</SelectItem>
+                      <SelectItem value="EVP">Chave aleatória (EVP)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="pix_key">Chave PIX</Label>
+                  <Input
+                    id="pix_key"
+                    value={formData.pix_key ?? ""}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        pix_key: e.target.value,
+                      }))
+                    }
+                    placeholder="Digite a chave correspondente ao tipo"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Preencha os dois campos para cadastrar a chave PIX, ou deixe
+                    ambos em branco.
+                  </p>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="account_holder_name">Nome do Titular</Label>
                 <Input
@@ -392,6 +463,11 @@ export const BankAccountsPage = () => {
                           ? "Conta Corrente"
                           : "Conta Poupança"}
                       </p>
+                      {account.pix_key && account.pix_key_type && (
+                        <p className="text-sm text-muted-foreground">
+                          PIX: {account.pix_key_type} • {account.pix_key}
+                        </p>
+                      )}
                       <p className="text-xs text-muted-foreground mt-1">
                         {account.account_holder_name}
                       </p>

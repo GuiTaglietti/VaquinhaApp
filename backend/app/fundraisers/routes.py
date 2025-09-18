@@ -18,6 +18,8 @@ from ..models import (
     PaymentStatus,
     Withdrawal,
     WithdrawalStatus,
+    LegalDoc, 
+    LegalAcceptance
 )
 from ..utils import (
     generate_slug,
@@ -59,6 +61,93 @@ def _get_fundraiser_or_404(fundraiser_id: str) -> Fundraiser:
         abort(404)
     return f
 
+REQUIRED_DOC_KEYS = ("terms", "privacy", "fees")
+
+def _client_locale() -> str:
+    lang = (request.args.get("lang") or "").strip()
+    if not lang:
+        lang = (request.headers.get("Accept-Language") or "").split(",")[0].strip()
+    return lang or "pt-BR"
+
+def _latest_legal_by_key(keys: tuple[str, ...], locale: str) -> dict:
+    """
+    Retorna {key: {title, version, updated_at}} para a última versão ativa por key/locale.
+    Se não houver doc para uma key, ela não aparece no dict (logo não é exigida).
+    """
+    rows = db.session.execute(
+        text("""
+            SELECT DISTINCT ON (key)
+                   key, title, version, updated_at
+              FROM legal_docs
+             WHERE key = ANY(:keys)
+               AND locale = :locale
+               AND is_active = TRUE
+             ORDER BY key, updated_at DESC
+        """),
+        {"keys": list(keys), "locale": locale},
+    ).mappings().all()
+
+    result = {}
+    for r in rows:
+        result[r["key"]] = {
+            "title": r["title"],
+            "version": r["version"],
+            "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None,
+        }
+    return result
+
+def _user_latest_acceptances(user_id, keys: tuple[str, ...]) -> dict:
+    """
+    Retorna {doc_key: version_aceita} considerando o aceite mais recente por key.
+    """
+    rows = db.session.execute(
+        text("""
+            SELECT DISTINCT ON (doc_key)
+                   doc_key, version
+              FROM legal_acceptances
+             WHERE user_id = :uid
+               AND doc_key = ANY(:keys)
+             ORDER BY doc_key, accepted_at DESC
+        """),
+        {"uid": str(user_id), "keys": list(keys)},
+    ).mappings().all()
+    return {r["doc_key"]: r["version"] for r in rows}
+
+def _check_legal_acceptance_or_412(user_id) -> tuple[bool, dict | None]:
+    """
+    Compara últimas versões ativas com o que o usuário aceitou.
+    Retorna (ok, payload_erro_ou_None).
+    """
+    locale = _client_locale()
+    latest = _latest_legal_by_key(REQUIRED_DOC_KEYS, locale)
+    required_keys = tuple(latest.keys())
+    user_ok = _user_latest_acceptances(user_id, required_keys)
+
+    missing = []
+    for k in required_keys:
+        latest_ver = latest[k]["version"]
+        accepted_ver = user_ok.get(k)
+        if accepted_ver != latest_ver:
+            missing.append({
+                "key": k,
+                "title": latest[k]["title"],
+                "required_version": latest_ver,
+                "accepted_version": accepted_ver,
+            })
+
+    if missing:
+        return False, {
+            "error": "legal_not_accepted",
+            "message": "Você precisa aceitar os documentos legais atualizados para criar uma arrecadação.",
+            "required": [
+                {"key": k, "title": latest[k]["title"], "version": latest[k]["version"]}
+                for k in required_keys
+            ],
+            "missing": missing,
+            "locale": locale,
+        }
+    return True, None
+
 
 @fundraisers_bp.route("", methods=["POST"])
 @tenant_required
@@ -67,6 +156,7 @@ def create_fundraiser():
     data = request.get_json() or {}
     title = data.get("title")
     goal_amount = data.get("goal_amount")
+
     if not title or goal_amount is None:
         return jsonify({"error": "invalid_request", "message": "Título e meta são obrigatórios"}), 400
 
@@ -84,6 +174,17 @@ def create_fundraiser():
             "error": "no_bank_account",
             "message": "Cadastre ao menos uma conta bancária para criar uma arrecadação."
         }), 403
+
+    for flag in ("terms_accepted", "privacy_accepted", "fees_accepted"):
+        if flag in data and not bool(data.get(flag)):
+            return jsonify({
+                "error": "legal_flags_missing",
+                "message": "É necessário aceitar termos, privacidade e taxas para criar a arrecadação."
+            }), 400
+
+    ok, err = _check_legal_acceptance_or_412(user_id)
+    if not ok:
+        return jsonify(err), 412
 
     f = Fundraiser(
         owner_user_id=user_id,

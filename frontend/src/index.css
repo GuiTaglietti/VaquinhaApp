@@ -214,3 +214,39 @@ All colors MUST be HSL.
     opacity: 0.8;
   }
 }
+
+.legal-prose :where(h1, h2, h3, h4) {
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.25;
+}
+
+.legal-prose p {
+  margin: 0.75rem 0;
+  line-height: 1.7;
+}
+
+.legal-prose ul,
+.legal-prose ol {
+  margin: 0.75rem 0 1rem;
+  padding-left: 1.25rem;
+}
+
+.legal-prose li {
+  margin: 0.25rem 0;
+}
+
+.legal-prose strong {
+  font-weight: 600;
+}
+
+.legal-prose hr {
+  margin: 1.25rem 0;
+}
+
+.legal-prose blockquote {
+  margin: 1rem 0;
+  padding-left: 1rem;
+  border-left: 3px solid hsl(var(--muted-foreground));
+  color: hsl(var(--muted-foreground));
+}

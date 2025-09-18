@@ -14,6 +14,8 @@ from .extensions import db, jwt, cors, logger
 from .payment_service import PaymentService
 from .models import User
 
+from sqlalchemy.engine import URL
+
 # Blueprints
 from .auth.routes import auth_bp
 from .fundraisers.routes import fundraisers_bp
@@ -25,6 +27,7 @@ from .withdrawals.routes import withdrawals_bp
 from .reports.routes import reports_bp
 from .invoices.routes import invoices_bp
 from .uploads.routes import uploads_bp 
+from .legal.routes import legal_bp
 
 
 def create_app() -> Flask:
@@ -37,13 +40,18 @@ def create_app() -> Flask:
             return Path(path).read_text().strip()
         return os.getenv(key, default)
 
-    db_url = (
-        os.getenv("DATABASE_URL")
-        or _getenv_file("DATABASE_URL")
-        or f"postgresql+psycopg2://{os.getenv('DATABASE_USER','postgres')}:"
-        f"{_getenv_file('DB_PASSWORD') or os.getenv('DB_PASSWORD','')}"
-        f"@{os.getenv('DATABASE_HOST','db')}:5432/{os.getenv('DATABASE_NAME','vaquinhas_db')}"
-    )
+    db_url_env = os.getenv("DATABASE_URL") or _getenv_file("DATABASE_URL")
+    if db_url_env:
+        db_url = db_url_env
+    else:
+        db_url = URL.create(
+            drivername="postgresql+psycopg2",
+            username=os.getenv("DATABASE_USER", "postgres"),
+            password=_getenv_file("DB_PASSWORD") or os.getenv("DB_PASSWORD", ""),
+            host=os.getenv("DATABASE_HOST", "db"),
+            port=5432,
+            database=os.getenv("DATABASE_NAME", "vaquinhas_db"),
+        )
 
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config.setdefault("SQLALCHEMY_TRACK_MODIFICATIONS", False)
@@ -63,8 +71,16 @@ def create_app() -> Flask:
     jwt.init_app(app)
     cors.init_app(app, resources={r"/api/*": {"origins": app.config["CORS_ORIGINS"]}}, supports_credentials=True)
 
-    # Service mock
+    # Service
     app.payment_service = PaymentService()
+
+    try:
+        if os.getenv("PIX_REGISTER_WEBHOOK_ON_STARTUP", "true").lower() in ("1", "true", "yes"):
+            resp = app.payment_service.register_psp_webhook()
+            logger.info("Webhook PSP registrado via PIX-Module: %s", resp.get("status", "ok"))
+    
+    except Exception as exc:
+        logger.warning("Falha ao registrar webhook no PSP via PIX-Module: %s", exc)
 
     # Tenant
     @app.before_request
@@ -86,6 +102,7 @@ def create_app() -> Flask:
     app.register_blueprint(reports_bp, url_prefix="/api")
     app.register_blueprint(invoices_bp, url_prefix="/api")
     app.register_blueprint(uploads_bp)  
+    app.register_blueprint(legal_bp, url_prefix="/api")
 
     def _ensure_upload_dir():
         upload_dir = app.config["UPLOAD_DIR"]
