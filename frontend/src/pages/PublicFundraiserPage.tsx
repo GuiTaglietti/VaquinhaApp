@@ -75,10 +75,10 @@ export const PublicFundraiserPage = () => {
       return;
     }
 
-    // if (data.amount < 20) {
-    //   toast.error("O valor mínimo para contribuição é R$ 20,00");
-    //   return;
-    // }
+    if (data.amount < 20) {
+      toast.error("O valor mínimo para contribuição é R$ 20,00");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -268,7 +268,7 @@ export const PublicFundraiserPage = () => {
                         id="amount"
                         type="number"
                         step="0.01"
-                        min="1"
+                        min="20"
                         placeholder="20,00"
                         className="pl-10"
                         {...register("amount", {

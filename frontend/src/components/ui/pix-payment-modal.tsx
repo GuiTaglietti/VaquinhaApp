@@ -49,10 +49,6 @@ export const PixPaymentModal = ({
   const [isLoading, setIsLoading] = useState(true);
 
   const validPixCode = useMemo(() => pixCode?.trim() || "", [pixCode]);
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5055";
-
-  const STATUS_URL = (txid: string) =>
-    `${API_URL}/api/payments/${txid}/refresh`;
 
   // Gera o QR a partir do pixCode recebido
   useEffect(() => {
@@ -107,7 +103,7 @@ export const PixPaymentModal = ({
     let cancelled = false;
     const interval = setInterval(async () => {
       try {
-        const resp = await axios.post(STATUS_URL(txid), {}, { timeout: 8000 });
+        const resp = await api.post(`/payments/${txid}/refresh`, {});
         const status: string = String(resp.data?.status || "").toUpperCase();
 
         if (status === "PAID") {
@@ -123,7 +119,7 @@ export const PixPaymentModal = ({
           }
         }
       } catch {
-        /* ignora erros intermitentes e continua */
+        // ignora erros intermitentes do polling
       }
     }, 3000);
 

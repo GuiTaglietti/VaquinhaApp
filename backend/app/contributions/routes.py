@@ -42,15 +42,15 @@ def create_contribution(fundraiser_id):
         }), 422
 
     data = request.get_json() or {}
-    amount = data.get("amount")
+    amount_in = data.get("amount")
 
     # validação e conversão de amount para Decimal
-    # try:
-    #     amount = Decimal(str(amount_in))
-    #     if amount < 20:
-    #         raise InvalidOperation()
-    # except (InvalidOperation, TypeError):
-    #     return jsonify({"error": "invalid_request", "message": "Valor da contribuição inválido"}), 422
+    try:
+        amount = Decimal(str(amount_in))
+        if amount < 20:
+            raise InvalidOperation()
+    except (InvalidOperation, TypeError):
+        return jsonify({"error": "invalid_request", "message": "Valor da contribuição inválido"}), 422
 
     message = data.get("message")
     is_anonymous = bool(data.get("is_anonymous", False))

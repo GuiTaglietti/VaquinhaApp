@@ -80,10 +80,10 @@ export const ExploreFundraiserPage = () => {
     }
 
     const numAmount = parseFloat(amount);
-    // if (Number.isNaN(numAmount) || numAmount < 20) {
-    //   toast.error("O valor mínimo para contribuição é R$ 20,00");
-    //   return;
-    // }
+    if (Number.isNaN(numAmount) || numAmount < 20) {
+      toast.error("O valor mínimo para contribuição é R$ 20,00");
+      return;
+    }
 
     // 1) Cria contribuição no backend para obter txid + brcode
     try {
@@ -284,7 +284,7 @@ export const ExploreFundraiserPage = () => {
                       id="amount"
                       type="number"
                       step="0.01"
-                      min="1"
+                      min="20"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       className="pl-10"

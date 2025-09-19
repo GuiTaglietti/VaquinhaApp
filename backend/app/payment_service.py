@@ -113,7 +113,7 @@ class PaymentService:
         (útil apenas em ambientes totalmente locais/mocados).
         """
         import os
-        webhook_url = os.getenv("PIX_MODULE_WEBHOOK_PUBLIC_URL")
+        webhook_url = os.getenv("PIX_MODULE_WEBHOOK_PUBLIC_URL", "https://a2fbd5f71023.ngrok-free.app/api/v1/webhooks/pix")
         if not webhook_url:
             webhook_url = f"{self.base_url}/api/v1/webhooks/pix"
 
